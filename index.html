@@ -392,7 +392,7 @@
     .sync-site-right .sub { font-size: 12px; text-align: right; }
     .sync-site-actions { display: flex; gap: 6px; flex: 0 0 auto; }
     .sync-site-actions .btn { min-height: 28px; padding: 0 9px; font-size: 12px; border-radius: 8px; }
-    .todo-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; padding: 14px 18px 18px; }
+    .todo-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; padding: 14px 18px 18px; }
     .todo-card { text-align: left; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 14px 16px; display: grid; gap: 3px; transition: .18s ease; }
     .todo-card:hover { transform: translateY(-1px); border-color: #cfd6e7; box-shadow: 0 8px 20px rgba(33,45,75,.07); }
     .todo-card b { font-size: 26px; letter-spacing: -.02em; }
@@ -400,6 +400,23 @@
     .todo-card i { font-style: normal; color: var(--primary); font-size: 12px; font-weight: 700; margin-top: 3px; }
     #autofollow, #settings { scroll-margin-top: 72px; }
     .sync-site-caption { color: var(--muted); font-size: 12px; padding: 2px 2px 8px; }
+
+    /* ===== 官网绑定 ===== */
+    .sync-badge.bind-on { background: var(--green-soft); color: #1d7a58; }
+    .sync-badge.bind-off { background: #eef1f6; color: #8a94a6; }
+    .sync-badge.bind-orphan { background: var(--amber-soft); color: var(--amber); }
+    .bind-entries { display: grid; gap: 6px; margin: 8px 0 4px; max-height: 190px; overflow: auto; }
+    .bind-entry {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%;
+      padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft);
+      font-size: 12.5px; text-align: left;
+    }
+    .bind-entry:hover { border-color: var(--primary); }
+    .bind-entry.is-selected { border-color: var(--primary); background: var(--primary-soft); }
+    .bind-entry .sub { color: var(--muted); font-size: 11.5px; text-align: right; }
+    .bind-nobind-row { display: flex; gap: 7px; align-items: center; margin-top: 9px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+    @media (max-width: 1100px) { .todo-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width: 560px) { .todo-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -442,6 +459,7 @@
           <button class="todo-card" id="todoConfirm" type="button"><b id="todoConfirmN">0</b><span>条官网状态待确认</span><i>去裁决 →</i></button>
           <button class="todo-card" id="todoUpcoming" type="button"><b id="todoUpcomingN">0</b><span>七天内笔试 / 面试安排</span><i>去准备 →</i></button>
           <button class="todo-card" id="todoOnboard" type="button"><b id="todoOnboardN">0</b><span>家已投公司还没接入官网</span><i>去接入 →</i></button>
+          <button class="todo-card" id="todoBind" type="button"><b id="todoBindN">0</b><span>条记录可绑定官网</span><i>去绑定 →</i></button>
         </div>
       </section>
       <section class="stats" id="overview" aria-label="投递概览">
@@ -511,101 +529,7 @@
         <div class="schedule-list" id="upcomingList"></div>
       </aside>
     </div>
-    </main>
-  </div>
-
-  <dialog id="recordDialog">
-    <form id="recordForm">
-      <div class="modal-head"><h2 id="dialogTitle">新增投递</h2><button class="close-btn" id="closeDialog" type="button" aria-label="关闭">×</button></div>
-      <div class="form-body">
-        <div class="form-grid">
-          <div class="field"><label for="company">公司 <span class="required">*</span></label><input class="control" id="company" name="company" required maxlength="60" placeholder="例如：星海科技"></div>
-          <div class="field"><label for="position">岗位 <span class="required">*</span></label><input class="control" id="position" name="position" required maxlength="80" placeholder="例如：产品经理校招生"></div>
-          <div class="field"><label for="city">城市 <span class="required">*</span></label><input class="control" id="city" name="city" required maxlength="30" placeholder="例如：上海"></div>
-          <div class="field"><label for="applicationDate">投递日期 <span class="required">*</span></label><input class="control" id="applicationDate" name="applicationDate" type="date" required></div>
-          <div class="field"><label for="stage">当前阶段 <span class="required">*</span></label><select class="control" id="stage" name="stage" required><option value="" disabled selected hidden></option></select></div>
-          <div class="field"><label for="scheduleAt">安排时间</label><input class="control" id="scheduleAt" name="scheduleAt" type="datetime-local"><div class="hint">有面试、笔试或跟进时间时填写</div></div>
-          <div class="field full"><label for="applicationUrl">投递网址</label><input class="control" id="applicationUrl" name="applicationUrl" type="url" maxlength="1000" placeholder="https://jobs.example.com/position/123"><div class="hint">通过一键收录插件添加时会自动填写</div></div>
-          <div class="field full"><label for="recentSchedule">最近安排</label><input class="control" id="recentSchedule" name="recentSchedule" maxlength="100" placeholder="例如：线上一面（腾讯会议）"></div>
-          <div class="field full"><label for="nextAction">下一步行动</label><textarea class="control" id="nextAction" name="nextAction" maxlength="200" placeholder="例如：准备项目复盘，提前测试摄像头"></textarea></div>
-        </div>
-      </div>
-      <div class="modal-actions"><button class="btn" id="cancelDialog" type="button">取消</button><button class="btn btn-primary" type="submit">保存记录</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="captureDialog">
-    <form id="captureForm">
-      <div class="modal-head"><h2>识别投递详情页</h2><button class="close-btn" id="closeCaptureDialog" type="button" aria-label="关闭">×</button></div>
-      <div class="form-body">
-        <p class="capture-note">粘贴招聘网站的岗位详情或投递详情网址。插件会在本机读取公司、岗位、投递日期和状态，识别完成后由你确认再保存。</p>
-        <div class="field">
-          <label for="captureUrlInput">投递详情页网址 <span class="required">*</span></label>
-          <input class="control" id="captureUrlInput" type="url" required placeholder="https://jobs.example.com/application/123">
-        </div>
-        <div class="capture-status" id="captureStatus" role="status" aria-live="polite">正在检查一键收录插件…</div>
-      </div>
-      <div class="modal-actions"><button class="btn" id="cancelCaptureDialog" type="button">取消</button><button class="btn btn-primary" id="startCaptureBtn" type="submit">开始识别</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="screenshotDialog">
-    <div class="modal-head"><h2>批量截图识别岗位</h2><button class="close-btn" id="closeScreenshotDialog" type="button" aria-label="关闭">×</button></div>
-    <div class="form-body">
-      <p class="capture-note">直接复制截图后按 Command + V 粘贴，也可以一次选择多张图片。识别完全在浏览器本地完成，不会上传；无法确认的日期会保持空白。</p>
-      <div class="ocr-dropzone" id="ocrDropzone" role="button" tabindex="0" aria-label="选择多张岗位截图">
-        <div id="ocrEmptyState"><div class="ocr-dropzone-icon">▧</div><div class="ocr-dropzone-title">粘贴、点击选择，或把多张截图拖到这里</div><div class="ocr-dropzone-help">复制图片后按 Command + V；支持 PNG、JPG、WEBP，最多 20 张</div></div>
-        <div class="ocr-preview-grid" id="ocrPreviewGrid" hidden></div>
-      </div>
-      <input id="ocrFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
-      <div class="ocr-progress" id="ocrProgress" hidden><div class="ocr-progress-fill" id="ocrProgressFill"></div></div>
-      <div class="capture-status" id="ocrStatus" role="status" aria-live="polite">按 Command + V 粘贴截图，或选择一张或多张图片。</div>
-      <div class="ocr-results" id="ocrResults" hidden></div>
-    </div>
-    <div class="modal-actions"><button class="btn" id="cancelScreenshotDialog" type="button">取消</button><button class="btn btn-primary" id="startOcrBtn" type="button" disabled>开始批量识别</button></div>
-  </dialog>
-
-  <dialog id="jobSyncDialog">
-    <div class="modal-head"><h2>同步腾讯招聘岗位</h2><button class="close-btn" id="closeJobSyncDialog" type="button" aria-label="关闭">×</button></div>
-    <div class="form-body">
-      <p class="capture-note">岗位只保存在你的浏览器本地。同步会读取公开招聘文档，不会上传你的投递记录，也不会自动替你投递。</p>
-      <div class="sync-steps">
-        <div class="sync-step"><span class="sync-step-number">1</span><div><strong>安装或更新“一键收录插件”</strong><span>腾讯文档有登录和跨站访问限制，需要插件在你的浏览器里读取。</span></div></div>
-        <div class="sync-step"><span class="sync-step-number">2</span><div><strong>点击下方“一键同步”</strong><span>插件会后台打开指定文档，读取岗位后自动关闭页面。</span></div></div>
-        <div class="sync-step"><span class="sync-step-number">3</span><div><strong>在岗位库里搜索并投递</strong><span>点击“记为已投递”后，才会写入正式投递记录。</span></div></div>
-      </div>
-      <div class="capture-status" id="jobSyncStatus" role="status" aria-live="polite">正在检查一键收录插件…</div>
-      <details class="sync-fallback">
-        <summary>插件暂时不可用？粘贴表格内容导入</summary>
-        <textarea class="control" id="jobPasteInput" placeholder="从腾讯文档复制多行岗位后粘贴到这里。建议包含：公司、岗位、城市、截止时间、投递链接。"></textarea>
-        <button class="btn btn-soft btn-small" id="importPastedJobsBtn" type="button">识别粘贴内容</button>
-      </details>
-    </div>
-    <div class="modal-actions"><button class="btn" id="cancelJobSyncDialog" type="button">取消</button><button class="btn btn-primary" id="startJobSyncBtn" type="button">一键同步</button></div>
-  </dialog>
-
-  <dialog id="safetyDialog">
-    <div class="modal-head"><h2>数据安全与恢复</h2><button class="close-btn" id="closeSafetyDialog" type="button" aria-label="关闭">×</button></div>
-    <div class="form-body">
-      <p class="capture-note">每次新增、编辑、删除和推进阶段后，都会保留浏览器主数据和历史快照。建议再设置一个电脑本地备份文件，形成独立保护。</p>
-      <div class="safety-summary">
-        <div class="safety-row"><div><div class="safety-label">浏览器主数据</div><div class="safety-detail">沿用固定存储标识，网站升级不会覆盖</div></div><div class="safety-state" id="primaryStorageState">已保护</div></div>
-        <div class="safety-row"><div><div class="safety-label">浏览器恢复快照</div><div class="safety-detail">最多保留最近 25 个数据版本</div></div><div class="safety-state" id="snapshotState">正在检查</div></div>
-        <div class="safety-row"><div><div class="safety-label">电脑本地备份文件</div><div class="safety-detail">设置后，每次修改都会尝试同步写入</div></div><div class="safety-state warning" id="fileBackupState">尚未设置</div></div>
-      </div>
-      <div class="safety-actions">
-        <button class="btn btn-primary" id="setupBackupBtn" type="button">设置自动备份文件</button>
-        <button class="btn" id="backupNowBtn" type="button">立即同步备份</button>
-        <button class="btn" id="importBtn" type="button">导入备份文件</button>
-        <button class="btn" id="restoreSnapshotBtn" type="button">恢复上一个快照</button>
-      </div>
-      <input id="importFileInput" type="file" accept="application/json,.json" hidden>
-      <p class="safety-footnote">本地备份不上传网络。若电脑和备份文件同时损坏，仍无法恢复；重要数据建议把备份文件另存到你信任的移动硬盘或个人云盘。</p>
-    </div>
-    <div class="modal-actions"><button class="btn" id="doneSafetyDialog" type="button">完成</button></div>
-  </dialog>
-
-  <section class="panel" id="autofollow" aria-labelledby="autofollowTitle" style="margin-bottom:20px">
+        <section class="panel" id="autofollow" aria-labelledby="autofollowTitle" style="margin-bottom:20px">
         <div class="panel-head"><div><h2 class="panel-title" id="autofollowTitle">自动跟进</h2><div class="panel-caption">接入官网后，投递状态自动更新到台账——待确认事项会标在左侧导航上</div></div></div>
         <div class="panel-body" style="padding-top:16px">
     
@@ -687,12 +611,113 @@
             <div class="sync-toolbar">
               <button class="btn" id="sideSafetyBtn2" type="button"><span class="icon">◇</span>数据安全与备份</button>
               <button class="btn" id="sideExportBtn" type="button"><span class="icon">⇩</span>导出数据</button>
-              <a class="btn" href="/guide" target="_blank"><span class="icon">□</span>使用指南</a>
+              <a class="btn" id="sideGuideLink" href="/guide" target="_blank"><span class="icon">□</span>使用指南</a>
               <a class="btn" id="sideConsoleLink" href="/console/" hidden><span class="icon">🎛</span>投递控制台（引擎面板）</a>
             </div>
             <p class="sync-hint" style="margin-top:12px">数据保存在本机浏览器，换设备请先「导出数据」。官网登录、抓包等引擎操作在「投递控制台」完成。</p>
           </div>
         </section>
+    </main>
+  </div>
+
+  <dialog id="recordDialog">
+    <form id="recordForm">
+      <div class="modal-head"><h2 id="dialogTitle">新增投递</h2><button class="close-btn" id="closeDialog" type="button" aria-label="关闭">×</button></div>
+      <div class="form-body">
+        <div class="form-grid">
+          <div class="field"><label for="company">公司 <span class="required">*</span></label><input class="control" id="company" name="company" required maxlength="60" placeholder="例如：星海科技"></div>
+          <div class="field"><label for="position">岗位 <span class="required">*</span></label><input class="control" id="position" name="position" required maxlength="80" placeholder="例如：产品经理校招生"></div>
+          <div class="field"><label for="city">城市 <span class="required">*</span></label><input class="control" id="city" name="city" required maxlength="30" placeholder="例如：上海"></div>
+          <div class="field"><label for="applicationDate">投递日期 <span class="required">*</span></label><input class="control" id="applicationDate" name="applicationDate" type="date" required></div>
+          <div class="field"><label for="stage">当前阶段 <span class="required">*</span></label><select class="control" id="stage" name="stage" required><option value="" disabled selected hidden></option></select></div>
+          <div class="field"><label for="scheduleAt">安排时间</label><input class="control" id="scheduleAt" name="scheduleAt" type="datetime-local"><div class="hint">有面试、笔试或跟进时间时填写</div></div>
+          <div class="field full"><label for="applicationUrl">投递网址</label><input class="control" id="applicationUrl" name="applicationUrl" type="url" maxlength="1000" placeholder="https://jobs.example.com/position/123"><div class="hint">通过一键收录插件添加时会自动填写</div></div>
+          <div class="field full"><label for="recentSchedule">最近安排</label><input class="control" id="recentSchedule" name="recentSchedule" maxlength="100" placeholder="例如：线上一面（腾讯会议）"></div>
+          <div class="field full"><label for="nextAction">下一步行动</label><textarea class="control" id="nextAction" name="nextAction" maxlength="200" placeholder="例如：准备项目复盘，提前测试摄像头"></textarea></div>
+          <div class="field full" id="bindField" hidden>
+            <label>官网绑定</label>
+            <div class="hint" id="bindCurrent"></div>
+            <div class="bind-entries" id="bindEntries"></div>
+            <label class="bind-nobind-row"><input type="checkbox" id="noBindCheck"> 这条无需官网绑定（纯手动维护，不再提示）</label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions"><button class="btn" id="cancelDialog" type="button">取消</button><button class="btn btn-primary" type="submit">保存记录</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="captureDialog">
+    <form id="captureForm">
+      <div class="modal-head"><h2>识别投递详情页</h2><button class="close-btn" id="closeCaptureDialog" type="button" aria-label="关闭">×</button></div>
+      <div class="form-body">
+        <p class="capture-note">粘贴招聘网站的岗位详情或投递详情网址。插件会在本机读取公司、岗位、投递日期和状态，识别完成后由你确认再保存。</p>
+        <div class="field">
+          <label for="captureUrlInput">投递详情页网址 <span class="required">*</span></label>
+          <input class="control" id="captureUrlInput" type="url" required placeholder="https://jobs.example.com/application/123">
+        </div>
+        <div class="capture-status" id="captureStatus" role="status" aria-live="polite">正在检查一键收录插件…</div>
+      </div>
+      <div class="modal-actions"><button class="btn" id="cancelCaptureDialog" type="button">取消</button><button class="btn btn-primary" id="startCaptureBtn" type="submit">开始识别</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="screenshotDialog">
+    <div class="modal-head"><h2>批量截图识别岗位</h2><button class="close-btn" id="closeScreenshotDialog" type="button" aria-label="关闭">×</button></div>
+    <div class="form-body">
+      <p class="capture-note">直接复制截图后按 Command + V 粘贴，也可以一次选择多张图片。识别完全在浏览器本地完成，不会上传；无法确认的日期会保持空白。</p>
+      <div class="ocr-dropzone" id="ocrDropzone" role="button" tabindex="0" aria-label="选择多张岗位截图">
+        <div id="ocrEmptyState"><div class="ocr-dropzone-icon">▧</div><div class="ocr-dropzone-title">粘贴、点击选择，或把多张截图拖到这里</div><div class="ocr-dropzone-help">复制图片后按 Command + V；支持 PNG、JPG、WEBP，最多 20 张</div></div>
+        <div class="ocr-preview-grid" id="ocrPreviewGrid" hidden></div>
+      </div>
+      <input id="ocrFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+      <div class="ocr-progress" id="ocrProgress" hidden><div class="ocr-progress-fill" id="ocrProgressFill"></div></div>
+      <div class="capture-status" id="ocrStatus" role="status" aria-live="polite">按 Command + V 粘贴截图，或选择一张或多张图片。</div>
+      <div class="ocr-results" id="ocrResults" hidden></div>
+    </div>
+    <div class="modal-actions"><button class="btn" id="cancelScreenshotDialog" type="button">取消</button><button class="btn btn-primary" id="startOcrBtn" type="button" disabled>开始批量识别</button></div>
+  </dialog>
+
+  <dialog id="jobSyncDialog">
+    <div class="modal-head"><h2>同步腾讯招聘岗位</h2><button class="close-btn" id="closeJobSyncDialog" type="button" aria-label="关闭">×</button></div>
+    <div class="form-body">
+      <p class="capture-note">岗位只保存在你的浏览器本地。同步会读取公开招聘文档，不会上传你的投递记录，也不会自动替你投递。</p>
+      <div class="sync-steps">
+        <div class="sync-step"><span class="sync-step-number">1</span><div><strong>安装或更新“一键收录插件”</strong><span>腾讯文档有登录和跨站访问限制，需要插件在你的浏览器里读取。</span></div></div>
+        <div class="sync-step"><span class="sync-step-number">2</span><div><strong>点击下方“一键同步”</strong><span>插件会后台打开指定文档，读取岗位后自动关闭页面。</span></div></div>
+        <div class="sync-step"><span class="sync-step-number">3</span><div><strong>在岗位库里搜索并投递</strong><span>点击“记为已投递”后，才会写入正式投递记录。</span></div></div>
+      </div>
+      <div class="capture-status" id="jobSyncStatus" role="status" aria-live="polite">正在检查一键收录插件…</div>
+      <details class="sync-fallback">
+        <summary>插件暂时不可用？粘贴表格内容导入</summary>
+        <textarea class="control" id="jobPasteInput" placeholder="从腾讯文档复制多行岗位后粘贴到这里。建议包含：公司、岗位、城市、截止时间、投递链接。"></textarea>
+        <button class="btn btn-soft btn-small" id="importPastedJobsBtn" type="button">识别粘贴内容</button>
+      </details>
+    </div>
+    <div class="modal-actions"><button class="btn" id="cancelJobSyncDialog" type="button">取消</button><button class="btn btn-primary" id="startJobSyncBtn" type="button">一键同步</button></div>
+  </dialog>
+
+  <dialog id="safetyDialog">
+    <div class="modal-head"><h2>数据安全与恢复</h2><button class="close-btn" id="closeSafetyDialog" type="button" aria-label="关闭">×</button></div>
+    <div class="form-body">
+      <p class="capture-note">每次新增、编辑、删除和推进阶段后，都会保留浏览器主数据和历史快照。建议再设置一个电脑本地备份文件，形成独立保护。</p>
+      <div class="safety-summary">
+        <div class="safety-row"><div><div class="safety-label">浏览器主数据</div><div class="safety-detail">沿用固定存储标识，网站升级不会覆盖</div></div><div class="safety-state" id="primaryStorageState">已保护</div></div>
+        <div class="safety-row"><div><div class="safety-label">浏览器恢复快照</div><div class="safety-detail">最多保留最近 25 个数据版本</div></div><div class="safety-state" id="snapshotState">正在检查</div></div>
+        <div class="safety-row"><div><div class="safety-label">电脑本地备份文件</div><div class="safety-detail">设置后，每次修改都会尝试同步写入</div></div><div class="safety-state warning" id="fileBackupState">尚未设置</div></div>
+      </div>
+      <div class="safety-actions">
+        <button class="btn btn-primary" id="setupBackupBtn" type="button">设置自动备份文件</button>
+        <button class="btn" id="backupNowBtn" type="button">立即同步备份</button>
+        <button class="btn" id="importBtn" type="button">导入备份文件</button>
+        <button class="btn" id="restoreSnapshotBtn" type="button">恢复上一个快照</button>
+      </div>
+      <input id="importFileInput" type="file" accept="application/json,.json" hidden>
+      <p class="safety-footnote">本地备份不上传网络。若电脑和备份文件同时损坏，仍无法恢复；重要数据建议把备份文件另存到你信任的移动硬盘或个人云盘。</p>
+    </div>
+    <div class="modal-actions"><button class="btn" id="doneSafetyDialog" type="button">完成</button></div>
+  </dialog>
+
+  
 
   <dialog id="installDialog">
     <div class="modal-head"><h2>安装到手机桌面</h2><button class="close-btn" id="closeInstallDialog" type="button" aria-label="关闭">×</button></div>
@@ -758,6 +783,8 @@
       let jobs = loadJobs();
       let jobPoolUpdatedAt = loadJobPoolMeta();
       let editingId = null;
+      // 编辑弹窗里的官网绑定选择状态：touched = 用户在本次弹窗中动过绑定区
+      let dialogBind = { key: '', noBind: false, touched: false };
       let toastTimer;
       let bridgeReady = false;
       let bridgeCheckTimer;
@@ -861,6 +888,11 @@
           nextAction: String(item.nextAction || ''), updatedAt: Number(item.updatedAt) || Date.now(),
           statusRaw: String(item.statusRaw || ''), statusSource: String(item.statusSource || ''),
           lastSyncedAt: String(item.lastSyncedAt || ''),
+          // 官网绑定：syncKey = 站点|官网岗位名[|投递日期]。有值 = 官网自动更新；无值 = 手动维护；noBind = 用户明确无需绑定
+          syncKey: String(item.syncKey || ''),
+          wantBind: Boolean(item.wantBind),
+          noBind: item.noBind === true,
+          orphanedAt: String(item.orphanedAt || ''),
           isExample: item.isExample === true
         };
       }
@@ -1283,10 +1315,17 @@
       /* ==================== 官方状态同步（tracker-sync） ==================== */
 
       function loadSyncState() {
-        const fallback = { lastGeneratedAt: '', lastCheckedAt: '', lastSummary: '尚未同步', ignored: [], pending: [], stats: { applied: 0 }, checks: 0, checkDay: '', paused: false, needsAuth: false, lastError: '', consoleUrl: 'http://127.0.0.1:7788' };
+        const fallback = { lastGeneratedAt: '', lastCheckedAt: '', lastSummary: '尚未同步', ignored: [], pending: [], officialEntries: [], stats: { applied: 0 }, checks: 0, checkDay: '', paused: false, needsAuth: false, lastError: '', consoleUrl: 'http://127.0.0.1:7788' };
         try {
           const parsed = JSON.parse(localStorage.getItem(SYNC_KEY) || '{}');
-          return { ...fallback, ...parsed, stats: { ...fallback.stats, ...(parsed.stats || {}) } };
+          const state = { ...fallback, ...parsed, stats: { ...fallback.stats, ...(parsed.stats || {}) } };
+          // 旧版待确认/忽略键带抓取时间（site|job|fetchedAt）：收敛为稳定键 site|job，去重与「忽略」才能跨查询长期生效
+          const stableKey = (key) => String(key || '').replace(/\|20\d{2}-\d{2}-\d{2}T.*$/, '');
+          state.pending = [...new Map((Array.isArray(state.pending) ? state.pending : [])
+            .map(item => ({ ...item, key: stableKey(item.key) })).map(item => [item.key, item])).values()];
+          state.ignored = [...new Set((Array.isArray(state.ignored) ? state.ignored : []).map(stableKey))];
+          state.officialEntries = Array.isArray(state.officialEntries) ? state.officialEntries : [];
+          return state;
         } catch (_) {
           return fallback;
         }
@@ -1327,10 +1366,10 @@
         return false;
       }
 
-      function findMatches(update) {
+      function findMatches(update, pool = records) {
         const exact = [];
         const contains = [];
-        for (const record of records) {
+        for (const record of pool) {
           if (!companyMatches(record, update)) continue;
           const relate = jobRelates(record, update);
           if (relate === 'exact') exact.push(record);
@@ -1375,6 +1414,21 @@
         return { action: 'touch' };
       }
 
+      function buildSyncKey(update) {
+        const date = /^(\d{4}-\d{2}-\d{2})/.test(String(update.appliedAt || '')) ? String(update.appliedAt).slice(0, 10) : '';
+        return `${update.site}|${String(update.job || '')}${date ? '|' + date : ''}`;
+      }
+
+      // 台账公司名是否对应一个已支持的官网站点；返回站点 key 或空串
+      function siteKeyForCompany(company) {
+        const hay = String(company || '').toLowerCase().trim();
+        if (hay.length < 2) return '';
+        for (const [key, aliases] of Object.entries(SITE_ALIASES)) {
+          if (aliases.some(alias => hay.includes(alias.toLowerCase()) || alias.toLowerCase().includes(hay))) return key;
+        }
+        return '';
+      }
+
       function applySyncFields(update, record) {
         record.statusRaw = String(update.statusRaw || '');
         record.statusSource = String(update.site || '');
@@ -1393,13 +1447,15 @@
           statusRaw: String(update.statusRaw || ''),
           statusSource: String(update.site || ''),
           lastSyncedAt: new Date().toISOString(),
+          syncKey: buildSyncKey(update), // 官网新建的记录天生绑定
           updatedAt: Date.now()
         });
       }
 
       function pendingFromUpdate(update, matchIds, reason) {
         return {
-          key: `${update.site}|${update.job}|${update.fetchedAt || ''}`,
+          // 稳定键：不含 fetchedAt（每次官网抓取都会变），否则去重与「忽略」在下一次查询后全部失效
+          key: `${update.site}|${update.job}`,
           site: update.site, company: update.company || SITE_NAMES[update.site] || update.site,
           job: update.job, dept: update.dept || '', city: update.city || '',
           statusRaw: update.statusRaw || '', status: update.status || '',
@@ -1427,44 +1483,148 @@
           if (!previous || String(update.fetchedAt || '') > String(previous.fetchedAt || '')) byJob.set(key, update);
         }
         const ignoredSet = new Set(syncState.ignored || []);
-        let auto = 0, touch = 0;
+        let auto = 0, touch = 0, orphan = 0;
+        let bindingsHealed = false;
         const queued = [];
         const seenKeys = new Set(syncState.pending.map(item => item.key));
+        // 所有场景统一按稳定键去重：已在待确认里的不再重复入队（直连模式 60s 轮询反复 ingest 也不会刷屏）
+        const pushQueue = (item) => { if (seenKeys.has(item.key)) return; seenKeys.add(item.key); queued.push(item); };
+        // 名字匹配只在未绑定记录里找（每次实时过滤）：已绑定的各有其主，也不受本轮新绑定影响
+        const unbound = () => records.filter(record => !record.syncKey);
+        const payloadSites = new Set();
+        const payloadPrefixes = new Set();
+        const fuzzyDeferred = [];
         for (const update of byJob.values()) {
           const cls = classifyOfficial(update);
-          const { exact, contains } = findMatches(update);
+          const syncKey = buildSyncKey(update);
+          const syncPrefix = `${update.site}|${update.job}`;
+          payloadSites.add(update.site);
+          payloadPrefixes.add(syncPrefix);
+
+          // 第一优先：已绑定官网记录的按 syncKey 直接更新，不再依赖名称匹配
+          // （兼容两段式 syncKey——绑定时官网还没给投递日期：按 site|job 前缀也能对上）
+          const bound = records.find(r => r.syncKey && (r.syncKey === syncPrefix || r.syncKey.startsWith(`${syncPrefix}|`)));
+          if (bound) {
+            if (bound.syncKey !== syncKey) { bound.syncKey = syncKey; bindingsHealed = true; } // 官网补上日期后自愈为全键
+            if (bound.orphanedAt) { bound.orphanedAt = ''; bindingsHealed = true; } // 条目回来了，恢复自动更新
+            const plan = planMerge(update, bound, cls);
+            if (plan.action === 'auto') {
+              bound.stage = plan.stage;
+              applySyncFields(update, bound);
+              syncState.stats.applied += 1;
+              auto += 1;
+            } else if (plan.action === 'queue') {
+              pushQueue(pendingFromUpdate(update, [bound.id], plan.reason));
+            } else {
+              applySyncFields(update, bound);
+              touch += 1;
+            }
+            continue;
+          }
+
+          // 第二优先：精确匹配（公司对上 + 岗位归一化后完全一致）——自动应用并落绑定，此后不再靠名字
+          const { exact } = findMatches(update, unbound());
           if (exact.length) {
             const record = exact[0];
             const plan = planMerge(update, record, cls);
             if (plan.action === 'auto') {
               record.stage = plan.stage;
               applySyncFields(update, record);
+              record.syncKey = syncKey; // 精确匹配自动落绑定
               syncState.stats.applied += 1;
               auto += 1;
             } else if (plan.action === 'queue') {
-              queued.push(pendingFromUpdate(update, [record.id], plan.reason));
+              pushQueue(pendingFromUpdate(update, [record.id], plan.reason));
             } else {
               applySyncFields(update, record);
+              record.syncKey = syncKey;
+              touch += 1;
+            }
+            continue;
+          }
+          fuzzyDeferred.push({ update, cls });
+        }
+
+        // 第二轮：绑定与精确匹配全部落定后，仍未绑定的记录才参与模糊匹配——
+        // 避免同轮先到的模糊条目把「稍后被精确绑定」的记录抢去当候选
+        for (const { update, cls } of fuzzyDeferred) {
+          const syncKey = buildSyncKey(update);
+          const { exact, contains } = findMatches(update, unbound());
+          if (exact.length) {
+            // 防御分支：第一轮没精确命中、第二轮命中的情况正常不会发生
+            const record = exact[0];
+            const plan = planMerge(update, record, cls);
+            if (plan.action === 'auto') {
+              record.stage = plan.stage;
+              applySyncFields(update, record);
+              record.syncKey = syncKey;
+              syncState.stats.applied += 1;
+              auto += 1;
+            } else if (plan.action === 'queue') {
+              pushQueue(pendingFromUpdate(update, [record.id], plan.reason));
+            } else {
+              applySyncFields(update, record);
+              record.syncKey = syncKey;
               touch += 1;
             }
           } else if (contains.length) {
-            queued.push(pendingFromUpdate(update, contains.slice(0, 5).map(r => r.id), 'fuzzy'));
+            const relaxed = contains.some(record => record.wantBind); // 标记过「待绑定」的记录，模糊命中也自动绑定
+            if (relaxed) {
+              const record = contains.find(r => r.wantBind);
+              const plan = planMerge(update, record, cls);
+              if (plan.action === 'auto') {
+                record.stage = plan.stage;
+                applySyncFields(update, record);
+                record.syncKey = syncKey;
+                syncState.stats.applied += 1;
+                auto += 1;
+              } else {
+                pushQueue(pendingFromUpdate(update, [record.id], 'fuzzy'));
+              }
+            } else {
+              pushQueue(pendingFromUpdate(update, contains.slice(0, 5).map(r => r.id), 'fuzzy'));
+            }
           } else {
             const item = pendingFromUpdate(update, [], 'new');
-            if (!ignoredSet.has(item.key) && !seenKeys.has(item.key)) queued.push(item);
+            // 用户标过「无需绑定」的同公司同名记录还在时，这条官网条目不再建议新建
+            const declined = records.some(record => record.noBind && companyMatches(record, update) && jobRelates(record, update) === 'exact');
+            if (!declined && !ignoredSet.has(item.key)) pushQueue(item);
           }
         }
+        // 已绑定记录在本站数据里消失（同站还有其他记录）→ 官网已无此条，自动转手动维护
+        for (const record of records) {
+          if (!record.syncKey || record.orphanedAt) continue;
+          const site = record.syncKey.split('|')[0];
+          const prefix = record.syncKey.split('|').slice(0, 2).join('|');
+          if (payloadSites.has(site) && !payloadPrefixes.has(prefix)) {
+            record.orphanedAt = new Date().toISOString();
+            orphan += 1;
+          }
+        }
+        if (orphan) showToast(`${orphan} 条记录在官网已不存在，已自动转为手动维护（数据未删除）`);
         syncState.pending = [...syncState.pending, ...queued];
+        // 官网条目全量留一份精简副本：编辑弹窗「绑定官网记录」与「N 条可绑定」待办都从这里取
+        syncState.officialEntries = updates
+          .filter(update => update && update.site && update.job)
+          .map(update => ({
+            site: String(update.site), company: String(update.company || SITE_NAMES[update.site] || update.site),
+            job: String(update.job), dept: String(update.dept || ''), city: String(update.city || ''),
+            statusRaw: String(update.statusRaw || ''), status: String(update.status || ''),
+            appliedAt: String(update.appliedAt || ''), fetchedAt: String(update.fetchedAt || '')
+          }))
+          .slice(0, 500);
         if (payload.generatedAt) syncState.lastGeneratedAt = String(payload.generatedAt);
         syncState.lastCheckedAt = new Date().toISOString();
         lastSyncPayload = payload;
-        if (auto || touch) { saveRecords(); render(); }
+        if (auto || touch || orphan || bindingsHealed) { saveRecords(); render(); }
         syncState.lastSummary = auto || queued.length
           ? `应用 ${auto} 条${queued.length ? `，${queued.length} 条待确认` : ''}`
           : '无新变化';
+        if (orphan) syncState.lastSummary += `，${orphan} 条转手动`;
         saveSyncState();
         renderSyncPanel();
-        return { ok: true, auto, pending: queued.length, touch };
+        renderTodoStrip();
+        return { ok: true, auto, pending: queued.length, touch, orphan };
       }
 
       function resolvePending(key, action, chosenId) {
@@ -1479,6 +1639,10 @@
             if (record) {
               if (item.reason === 'revive' && cls.kind !== 'promote') record.stage = '已投递';
               else if (cls.kind === 'terminal' || cls.kind === 'promote') record.stage = cls.stage;
+              // 裁决即绑定：确认过身份的记录写入 syncKey，之后按绑定直取，不再反复匹配、反复询问
+              record.syncKey = buildSyncKey(item);
+              record.orphanedAt = '';
+              record.noBind = false;
               applySyncFields(item, record);
               syncState.stats.applied += 1;
             }
@@ -1491,6 +1655,7 @@
         }
         saveSyncState();
         renderSyncPanel();
+        renderTodoStrip();
       }
 
       function bulkCreatePending() {
@@ -1655,10 +1820,20 @@
           consoleState = null;
         }
         renderSyncPanel();
+        // 探测可达立即补一次拉取：startSyncPolling 跑在探测完成前（consoleReachable 还是 null），
+        // 不补这一下，直连模式要等满 60 秒才出现第一次状态
+        if (consoleReachable && !syncFileHandle && !syncState.paused) pullTrackerSyncSoon();
         return consoleReachable;
       }
 
+      let lastPullAt = 0;
+      function pullTrackerSyncSoon() {
+        if (Date.now() - lastPullAt < 30000) return;
+        pullTrackerSync();
+      }
+
       async function pullTrackerSync() {
+        lastPullAt = Date.now();
         const base = getConsoleBase();
         try {
           const payload = await fetch(base + '/api/tracker-sync').then(x => x.json());
@@ -1666,7 +1841,7 @@
           if (result?.ok && (result.auto || result.pending)) {
             showToast(`已自动应用 ${result.auto} 条官方状态${result.pending ? `，${result.pending} 条待你确认` : ''}`);
           }
-        } catch (_) { /* 控制台可能暂时不可达，静默等下一轮 */ }
+        } catch (error) { console.warn('状态包拉取/应用失败（下一轮自动重试）', error); }
       }
 
       async function queryViaConsole() {
@@ -2091,7 +2266,7 @@
             const hay = String(job.company || '').toLowerCase();
             return (SITE_ALIASES[key] || []).some(alias => hay.includes(alias.toLowerCase()) || alias.toLowerCase().includes(hay)) && hay.length >= 2;
           });
-          if (mappedSite) showToast(`已加入台账。可在「状态同步」接入${SITE_NAMES[mappedSite]}官网，自动跟进投递状态`);
+          if (mappedSite) showToast(`已加入台账。可在「自动跟进」接入${SITE_NAMES[mappedSite]}官网，自动跟进投递状态`);
         }
       }
 
@@ -2103,13 +2278,19 @@
         for (const record of records) {
           for (const [key, aliases] of Object.entries(SITE_ALIASES)) {
             const hay = String(record.company || '').toLowerCase();
-            if ((consoleState === null || consoleState.sites.some(x => x.key === key)) && aliases.some(a => hay.includes(a.toLowerCase()) && hay.length >= 2)) appliedKeys.add(key);
+            if ((consoleState === null || (consoleState.sites || []).some(x => x.key === key)) && aliases.some(a => hay.includes(a.toLowerCase()) && hay.length >= 2)) appliedKeys.add(key);
           }
         }
         const needLogin = consoleState ? appliedKeys.size ? [...appliedKeys].filter(k => { const s2 = (consoleState.sites || []).find(x => x.key === k); return s2 && !s2.hasProfile; }).length : 0 : null;
+        // 可绑定：官网有这家公司的数据、记录还没绑定、也没标「无需绑定」
+        const official = syncState.officialEntries || [];
+        const bindable = official.length
+          ? records.filter(r => !r.isExample && !r.syncKey && !r.noBind && official.some(e => companyMatches(r, e))).length
+          : 0;
         $('#todoConfirmN').textContent = syncState.pending.length;
         $('#todoUpcomingN').textContent = upcoming;
         $('#todoOnboardN').textContent = needLogin === null ? '–' : needLogin;
+        $('#todoBindN').textContent = bindable;
       }
 
       function renderStats() {
@@ -2149,11 +2330,16 @@
             : '';
           const syncBadge = record.statusRaw ? `<span class="sync-badge"${syncTip}>${escapeHtml(String(record.statusRaw).slice(0, 6))}</span>` : '';
           const exampleBadge = record.isExample ? '<span class="sync-badge" title="这是示例数据，可以直接删除">示例</span>' : '';
+          const bindBadge = record.isExample ? '' : record.syncKey
+            ? (record.orphanedAt
+                ? `<span class="sync-badge bind-orphan" title="官网已无此条（${escapeHtml(formatClock(record.orphanedAt))}）——已转手动维护，编辑可重新绑定">🔗⚠</span>`
+                : `<span class="sync-badge bind-on" title="🔗 官网同步：${escapeHtml(siteLabelOfKey(record.syncKey))}（编辑可解除）">🔗</span>`)
+            : (record.noBind ? '' : '<span class="sync-badge bind-off" title="手动维护——编辑记录可绑定官网条目，绑定后状态自动更新">✎</span>');
           return `<tr>
             <td data-label="公司 / 岗位"><div class="company">${companyHtml}</div><div class="position">${escapeHtml(record.position)}</div></td>
             <td data-label="城市">${escapeHtml(record.city)}</td>
             <td data-label="投递日期">${escapeHtml(formatDate(record.applicationDate))}</td>
-            <td data-label="当前阶段"><span class="badge" data-stage="${escapeHtml(record.stage)}">${escapeHtml(record.stage)}</span>${syncBadge}${exampleBadge}</td>
+            <td data-label="当前阶段"><span class="badge" data-stage="${escapeHtml(record.stage)}">${escapeHtml(record.stage)}</span>${syncBadge}${bindBadge}${exampleBadge}</td>
             <td class="schedule" data-label="最近安排"><div class="schedule-time ${overdue ? 'overdue' : ''}">${escapeHtml(formatDateTime(record.scheduleAt))}${overdue ? ' · 已到期' : ''}</div><div class="schedule-text">${escapeHtml(record.recentSchedule || '—')}</div></td>
             <td data-label="下一步行动"><div class="next-action">${escapeHtml(record.nextAction || '—')}</div></td>
             <td data-label="操作"><div class="row-actions">
@@ -2191,6 +2377,44 @@
         $('#stage').innerHTML = STAGES.map(s => `<option value="${s}">${s}</option>`).join('');
       }
 
+      function siteLabelOfKey(key) {
+        const site = String(key || '').split('|')[0];
+        return `${SITE_NAMES[site] || site}官网`;
+      }
+
+      function officialEntriesFor(company) {
+        const value = String(company || '').trim();
+        if (!value) return [];
+        return (syncState.officialEntries || []).filter(entry => companyMatches({ company: value }, entry));
+      }
+
+      // 编辑弹窗「官网绑定」区：列出该公司的官网条目供点选；绑定后这条记录以官网为准自动更新
+      function renderBindSection() {
+        const field = $('#bindField');
+        if (!field) return;
+        const record = editingId ? records.find(r => r.id === editingId) : null;
+        const hasOfficial = (syncState.officialEntries || []).length > 0;
+        if (!hasOfficial && !(record && record.syncKey)) { field.hidden = true; return; }
+        field.hidden = false;
+        const currentKey = dialogBind.touched ? dialogBind.key : (record ? record.syncKey : '');
+        const entries = officialEntriesFor($('#company').value);
+        $('#bindCurrent').innerHTML = currentKey
+          ? `当前：<b>🔗 已绑定 ${escapeHtml(siteLabelOfKey(currentKey))}</b>——状态以官网为准，自动更新${record && record.orphanedAt && !dialogBind.touched ? '（官网已无此条，恢复后自动继续）' : ''}`
+          : `当前：✎ 手动维护${entries.length ? '——点选下方官网条目即可绑定，绑定后状态自动更新' : ''}`;
+        const rows = [];
+        if (currentKey) rows.push('<button type="button" class="bind-entry" data-bind-clear="1"><span>✕ 解除绑定（转手动维护）</span><span class="sub"></span></button>');
+        entries.forEach(entry => {
+          const entryKey = buildSyncKey(entry);
+          if (entryKey === currentKey) return;
+          rows.push(`<button type="button" class="bind-entry" data-bind-key="${escapeHtml(entryKey)}">
+            <span>${escapeHtml(entry.job)}${entry.appliedAt ? ` · 投递 ${escapeHtml(String(entry.appliedAt).slice(0, 10))}` : ''}</span>
+            <span class="sub">${escapeHtml(entry.statusRaw || entry.status || '状态未知')}</span>
+          </button>`);
+        });
+        $('#bindEntries').innerHTML = rows.length ? rows.join('') : (currentKey ? '' : '<div class="hint">这家公司还没有官网投递数据：先在「自动跟进」接入并查询一次。</div>');
+        $('#noBindCheck').checked = dialogBind.touched ? dialogBind.noBind : Boolean(record && record.noBind);
+      }
+
       function openDialog(record = null, seed = null) {
         const source = record || seed;
         editingId = record?.id || null;
@@ -2201,6 +2425,8 @@
         for (const field of ['company', 'position', 'city', 'applicationUrl', 'scheduleAt', 'recentSchedule', 'nextAction']) {
           if (source) document.getElementById(field).value = source[field] || '';
         }
+        dialogBind = { key: '', noBind: false, touched: false };
+        renderBindSection();
         els.dialog.showModal();
         requestAnimationFrame(() => $('#company').focus());
       }
@@ -2712,7 +2938,13 @@
       function submitForm(event) {
         event.preventDefault();
         const data = Object.fromEntries(new FormData(els.form).entries());
-        const normalized = normalizeRecord({ ...data, id: editingId || cryptoId(), updatedAt: Date.now() });
+        // 编辑时以原记录为底再覆盖表单字段：statusRaw/lastSyncedAt/syncKey 等同步元数据不被清空
+        //（否则编辑一次就会丢掉官网绑定，还会让「手动改过进确认队列」的保护失效）
+        const base = editingId ? (records.find(r => r.id === editingId) || {}) : {};
+        const binding = dialogBind.touched
+          ? { syncKey: dialogBind.noBind ? '' : dialogBind.key, noBind: dialogBind.noBind, orphanedAt: '' }
+          : {};
+        const normalized = normalizeRecord({ ...base, ...data, ...binding, id: editingId || cryptoId(), updatedAt: Date.now() });
         if (editingId) {
           records = records.map(record => record.id === editingId ? normalized : record);
           saveRecords('已更新并自动保存');
@@ -2854,13 +3086,30 @@
       $('#todoConfirm').addEventListener('click', openSyncDialog);
       $('#todoOnboard').addEventListener('click', openSyncDialog);
       $('#todoUpcoming').addEventListener('click', () => $('#records').scrollIntoView({ behavior: 'smooth', block: 'start' }));
-      $('#exportBtn').addEventListener('click', exportData);
-      document.querySelectorAll('.nav-item[href]').forEach(link => {
-        link.addEventListener('click', () => {
-          document.querySelectorAll('.nav-item[href]').forEach(item => item.classList.remove('is-active'));
-          link.classList.add('is-active');
-        });
+      $('#todoBind').addEventListener('click', () => $('#records').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      $('#bindEntries').addEventListener('click', event => {
+        const btn = event.target.closest('button[data-bind-key], button[data-bind-clear]');
+        if (!btn) return;
+        if (btn.dataset.bindClear !== undefined) dialogBind = { key: '', noBind: $('#noBindCheck').checked, touched: true };
+        else { dialogBind = { key: btn.dataset.bindKey, noBind: false, touched: true }; $('#noBindCheck').checked = false; }
+        renderBindSection();
       });
+      $('#noBindCheck').addEventListener('change', event => {
+        dialogBind.noBind = event.target.checked;
+        dialogBind.touched = true;
+        if (event.target.checked) dialogBind.key = '';
+        renderBindSection();
+      });
+      $('#company').addEventListener('input', renderBindSection);
+      $('#exportBtn').addEventListener('click', exportData);
+      const setActiveNav = (el) => {
+        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('is-active'));
+        if (el) el.classList.add('is-active');
+      };
+      document.querySelectorAll('.nav-item[href]').forEach(link => {
+        link.addEventListener('click', () => setActiveNav(link));
+      });
+      $('#sideSyncBtn').addEventListener('click', () => setActiveNav($('#sideSyncBtn')));
       $('#closeDialog').addEventListener('click', closeDialog);
       $('#cancelDialog').addEventListener('click', closeDialog);
       els.form.addEventListener('submit', submitForm);
@@ -2952,6 +3201,7 @@
       $('#doneInstallDialog').addEventListener('click', () => $('#installDialog').close());
       closeOnBackdrop('#installDialog', () => $('#installDialog').close());
       if (hostedByConsole()) $('#sideConsoleLink').hidden = false;
+      else $('#sideGuideLink').hidden = true; // /guide 路由由控制台提供；独立部署（file://、GitHub Pages）没有
       initializeDataSafety();
       probeConsole(); // 自动跟进区块常驻可见，加载即探测控制台
       initializeMobileApp();
