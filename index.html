@@ -388,6 +388,10 @@
     .sync-hint { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--surface-soft); border: 1px dashed var(--line); color: var(--muted); font-size: 12.5px; line-height: 1.8; }
     .sync-sites { display: grid; gap: 6px; margin: 10px 0 14px; }
     .sync-site { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+    .sync-site-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .sync-site-right .sub { font-size: 12px; text-align: right; }
+    .sync-site-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+    .sync-site-actions .btn { min-height: 28px; padding: 0 9px; font-size: 12px; border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -1694,6 +1698,113 @@
         }).join('');
       }
 
+      function renderSitesHealth() {
+        const list = $('#syncSitesList');
+        const sites = (consoleState && consoleState.sites) || [];
+        if (!sites.length) { list.hidden = true; return; }
+        list.hidden = false;
+        const sessions = (consoleState && consoleState.sessions) || [];
+        list.innerHTML = sites.map(s => {
+          const loginSess = sessions.find(x => x.kind === 'login' && x.site === s.key);
+          let dot = 'err', text = '未登录';
+          if (loginSess) { dot = 'warn'; text = '登录窗口已打开，完成扫码后点「登录完成」'; }
+          else if (s.hasProfile && s.hasSpec) {
+            dot = 'ok';
+            text = s.last ? `${formatClock(s.last.at)} 查到 ${(s.last.records || []).length} 条 · ${s.last.via === 'api' ? 'API 直连' : '页面模式'}` : '就绪，尚未查询';
+          } else if (s.hasProfile && s.hasSeeds) {
+            dot = 'warn'; text = '已登录，用预置接口（建议抓包校准）';
+          } else if (s.hasProfile) {
+            dot = 'warn'; text = '已登录，缺接口——在控制台点「抓包」';
+          }
+          const disabled = consoleQueryRunning ? 'disabled' : '';
+          let actions = '';
+          if (loginSess) {
+            actions = `<button class="btn btn-small btn-primary" data-console-action="login-confirm" data-id="${escapeHtml(loginSess.id)}" data-label="${escapeHtml(s.label)}" type="button">登录完成</button>
+                       <button class="btn btn-small" data-console-action="login-abort" data-id="${escapeHtml(loginSess.id)}" data-label="${escapeHtml(s.label)}" type="button">放弃</button>`;
+          } else {
+            actions = `${!s.hasProfile ? `<button class="btn btn-small" data-console-action="login" data-site="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label)}" type="button" ${disabled}>登录</button>` : ''}`
+              + `${s.hasProfile ? `<button class="btn btn-small" data-console-action="query" data-site="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label)}" type="button" ${disabled}>查此站</button>` : ''}`;
+          }
+          return `<div class="sync-site">
+            <span><span class="sync-dot ${dot}"></span>${escapeHtml(s.label)}</span>
+            <span class="sync-site-right"><span class="sub">${escapeHtml(text)}</span><span class="sync-site-actions">${actions}</span></span>
+          </div>`;
+        }).join('');
+      }
+
+      async function consoleApi(path, body) {
+        const base = getConsoleBase();
+        const opts = body === undefined ? { method: 'GET' } : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
+        const resp = await fetch(base + path, opts);
+        const j = await resp.json().catch(() => ({}));
+        if (!resp.ok || j.error) throw new Error(j.error || 'HTTP ' + resp.status);
+        return j;
+      }
+
+      async function querySite(site, label) {
+        if (consoleQueryRunning) return;
+        consoleQueryRunning = true;
+        const statusBox = $('#syncQueryStatus');
+        statusBox.hidden = false;
+        statusBox.className = 'capture-status';
+        const startedAt = Date.now();
+        try {
+          statusBox.textContent = `正在查询 ${label}…`;
+          await consoleApi('/api/status', { site });
+          for (;;) {
+            await new Promise(r => setTimeout(r, 1500));
+            const st = await consoleApi('/api/state');
+            const busy = st.busy;
+            const lastLog = busy && busy.logs && busy.logs.length ? busy.logs[busy.logs.length - 1] : '';
+            statusBox.textContent = `正在查询 ${label}（${Math.round((Date.now() - startedAt) / 1000)}s）… ${lastLog}`;
+            if (!busy || busy.done) break;
+            if (Date.now() - startedAt > 240000) throw new Error('查询超时，请稍后重试');
+          }
+          const payload = await consoleApi('/api/tracker-sync');
+          const result = ingestPayload(payload, 'console');
+          statusBox.className = 'capture-status success';
+          statusBox.textContent = result?.stale ? `${label} 查询完成：状态无变化` : `${label} 查询完成：${syncState.lastSummary}`;
+          await probeConsole();
+        } catch (error) {
+          statusBox.className = 'capture-status error';
+          statusBox.textContent = `${label} 查询失败：${error.message || error}`;
+        } finally {
+          consoleQueryRunning = false;
+          renderSyncPanel();
+        }
+      }
+
+      async function startConsoleLogin(site, label) {
+        try {
+          await consoleApi('/api/login', { site });
+          showToast(`${label} 登录窗口已打开，请在弹出窗口完成扫码/登录`);
+          await probeConsole();
+        } catch (error) {
+          showToast(`${label} 打开登录失败：${error.message || error}`);
+        }
+      }
+
+      async function confirmConsoleLogin(id, label) {
+        try {
+          const j = await consoleApi('/api/login/confirm', { id });
+          showToast(`${label} 登录完成（${j.cookies} 条 cookie 已保存），正在刷新状态`);
+          await probeConsole();
+          pullTrackerSync();
+        } catch (error) {
+          showToast(`${label} 登录确认失败：${error.message || error}`);
+        }
+      }
+
+      async function abortConsoleLogin(id, label) {
+        try {
+          await consoleApi('/api/login/abort', { id });
+          showToast(`${label} 登录已放弃`);
+          await probeConsole();
+        } catch (error) {
+          showToast(`操作失败：${error.message || error}`);
+        }
+      }
+
       function renderSyncPanel() {
         const badge = $('#syncNavBadge');
         const pendingCount = syncState.pending.length;
@@ -2762,6 +2873,15 @@
       $('#syncRegrantBtn2').addEventListener('click', regrantSyncFile);
       $('#syncExportBtn').addEventListener('click', exportSyncPayload);
       $('#syncQueryBtn').addEventListener('click', queryViaConsole);
+      $('#syncSitesList').addEventListener('click', event => {
+        const btn = event.target.closest('button[data-console-action]');
+        if (!btn || btn.disabled) return;
+        const { consoleAction: action, site, label, id } = btn.dataset;
+        if (action === 'query') querySite(site, label);
+        else if (action === 'login') startConsoleLogin(site, label);
+        else if (action === 'login-confirm') confirmConsoleLogin(id, label);
+        else if (action === 'login-abort') abortConsoleLogin(id, label);
+      });
       $('#syncSeedAllBtn').addEventListener('click', bulkCreatePending);
       $('#syncSeedOneBtn').addEventListener('click', () => { $('#syncSeedBox').hidden = true; });
       $('#syncBatchNewBtn').addEventListener('click', bulkCreatePending);
