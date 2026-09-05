@@ -410,6 +410,7 @@
         <button class="nav-item" id="sideScreenshotBtn" type="button"><span class="nav-icon">▣</span><span>截图识别</span></button>
         <button class="nav-item" id="sideSafetyBtn" type="button"><span class="nav-icon">◇</span><span>数据安全</span></button>
         <button class="nav-item" id="sideSyncBtn" type="button"><span class="nav-icon">↻</span><span>状态同步</span><span class="nav-badge" id="syncNavBadge" hidden>0</span></button>
+        <a class="nav-item" id="sideConsoleLink" href="/" hidden title="登录官网、抓接口、拉取官方状态"><span class="nav-icon">🎛</span><span>投递控制台</span></a>
       </nav>
       <div class="sidebar-footer"><strong>数据保存在本机</strong>无需账号，不上传投递记录</div>
     </aside>
@@ -1602,7 +1603,13 @@
 
       /* ==================== 直连控制台模式 ==================== */
 
+      // 由控制台同源托管（/tracker/）时直接用当前 origin，直连 API 无需跨域；独立部署时回落到配置地址
+      function hostedByConsole() {
+        return /^\/tracker(\/|$)/.test(location.pathname);
+      }
+
       function getConsoleBase() {
+        if (hostedByConsole()) return location.origin;
         return String(syncState.consoleUrl || 'http://127.0.0.1:7788').replace(/\/+$/, '');
       }
 
@@ -2895,6 +2902,7 @@
       $('#closeInstallDialog').addEventListener('click', () => $('#installDialog').close());
       $('#doneInstallDialog').addEventListener('click', () => $('#installDialog').close());
       closeOnBackdrop('#installDialog', () => $('#installDialog').close());
+      if (hostedByConsole()) $('#sideConsoleLink').hidden = false;
       initializeDataSafety();
       initializeMobileApp();
       consumeQuickCapture();
