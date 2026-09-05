@@ -847,6 +847,17 @@
         return text.split(separator).map(cleanJobCell).filter(Boolean);
       }
 
+      // 腾讯文档会把外链包装成 docs.qq.com/link?url=... 跳转，这里还原真实地址；
+      // 指向文档自身的链接不是岗位投递地址，直接丢弃
+      function normalizeTencentLink(u) {
+        try {
+          const parsed = new URL(u);
+          if (parsed.hostname === 'docs.qq.com' && parsed.pathname === '/link') return parsed.searchParams.get('url') || '';
+          if (parsed.hostname === 'docs.qq.com' && /^\/(smartsheet|doc|sheet|form)\//.test(parsed.pathname)) return '';
+        } catch (_) { return ''; }
+        return u;
+      }
+
       function parseJobRows(input) {
         const rawRows = Array.isArray(input) ? input : String(input || '').split(/\r?\n/).map(line => ({ cells: splitJobLine(line), text: line, links: [] }));
         const rows = rawRows.map(row => {
@@ -885,7 +896,9 @@
           if (index === headerIndex || (headerIndex >= 0 && index < headerIndex)) return;
           const cells = row.cells.filter(cell => !/^https?:\/\//i.test(cell));
           const get = field => Number.isInteger(mapping[field]) ? row.cells[mapping[field]] || '' : '';
-          const links = [...row.links, ...row.cells.filter(cell => /^https?:\/\//i.test(cell))];
+          const links = [...row.links, ...row.cells.filter(cell => /^https?:\/\//i.test(cell))]
+            .map(normalizeTencentLink)
+            .filter(Boolean);
           let company = cleanJobCell(get('company'));
           let position = cleanJobCell(get('position'));
           let city = cleanJobCell(get('city'));
