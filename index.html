@@ -392,6 +392,13 @@
     .sync-site-right .sub { font-size: 12px; text-align: right; }
     .sync-site-actions { display: flex; gap: 6px; flex: 0 0 auto; }
     .sync-site-actions .btn { min-height: 28px; padding: 0 9px; font-size: 12px; border-radius: 8px; }
+    .todo-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; padding: 14px 18px 18px; }
+    .todo-card { text-align: left; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 14px 16px; display: grid; gap: 3px; transition: .18s ease; }
+    .todo-card:hover { transform: translateY(-1px); border-color: #cfd6e7; box-shadow: 0 8px 20px rgba(33,45,75,.07); }
+    .todo-card b { font-size: 26px; letter-spacing: -.02em; }
+    .todo-card span { color: var(--muted); font-size: 13px; }
+    .todo-card i { font-style: normal; color: var(--primary); font-size: 12px; font-weight: 700; margin-top: 3px; }
+    #autofollow, #settings { scroll-margin-top: 72px; }
     .sync-site-caption { color: var(--muted); font-size: 12px; padding: 2px 2px 8px; }
   </style>
 </head>
@@ -404,13 +411,10 @@
       </div>
       <nav class="sidebar-nav">
         <a class="nav-item is-active" href="#overview"><span class="nav-icon">⌂</span><span>总览</span></a>
-        <a class="nav-item" href="#jobPool"><span class="nav-icon">⌕</span><span>岗位库</span></a>
-        <a class="nav-item" href="#records"><span class="nav-icon">▤</span><span>投递记录</span></a>
-        <a class="nav-item" href="#upcoming"><span class="nav-icon">□</span><span>未来安排</span></a>
-        <button class="nav-item" id="sideScreenshotBtn" type="button"><span class="nav-icon">▣</span><span>截图识别</span></button>
-        <button class="nav-item" id="sideSafetyBtn" type="button"><span class="nav-icon">◇</span><span>数据安全</span></button>
-        <button class="nav-item" id="sideSyncBtn" type="button"><span class="nav-icon">↻</span><span>状态同步</span><span class="nav-badge" id="syncNavBadge" hidden>0</span></button>
-        <a class="nav-item" id="sideConsoleLink" href="/" hidden title="登录官网、抓接口、拉取官方状态"><span class="nav-icon">🎛</span><span>投递控制台</span></a>
+        <a class="nav-item" href="#jobPool"><span class="nav-icon">⌕</span><span>找岗位</span></a>
+        <a class="nav-item" href="#records"><span class="nav-icon">▤</span><span>我的投递</span></a>
+        <button class="nav-item" id="sideSyncBtn" type="button"><span class="nav-icon">↻</span><span>自动跟进</span><span class="nav-badge" id="syncNavBadge" hidden>0</span></button>
+        <a class="nav-item" href="#settings"><span class="nav-icon">◈</span><span>设置</span></a>
       </nav>
       <div class="sidebar-footer"><strong>数据保存在本机</strong>无需账号，不上传投递记录</div>
     </aside>
@@ -432,7 +436,15 @@
       </div>
     </header>
 
-    <section class="stats" id="overview" aria-label="投递概览">
+    <section class="panel" id="todoStrip" aria-label="今天要做的" style="margin-bottom:20px">
+        <div class="panel-head"><div><h2 class="panel-title">今天要做的</h2><div class="panel-caption">处理完这些，就可以安心投递了</div></div></div>
+        <div class="panel-body todo-grid">
+          <button class="todo-card" id="todoConfirm" type="button"><b id="todoConfirmN">0</b><span>条官网状态待确认</span><i>去裁决 →</i></button>
+          <button class="todo-card" id="todoUpcoming" type="button"><b id="todoUpcomingN">0</b><span>七天内笔试 / 面试安排</span><i>去准备 →</i></button>
+          <button class="todo-card" id="todoOnboard" type="button"><b id="todoOnboardN">0</b><span>家已投公司还没接入官网</span><i>去接入 →</i></button>
+        </div>
+      </section>
+      <section class="stats" id="overview" aria-label="投递概览">
       <article class="stat-card"><div class="stat-top"><span>投递总数</span><span class="stat-icon">▤</span></div><div class="stat-number" id="totalCount">0</div></article>
       <article class="stat-card"><div class="stat-top"><span>今日投递</span><span class="stat-icon">＋</span></div><div class="stat-number" id="todayCount">0</div></article>
       <article class="stat-card"><div class="stat-top"><span>进行中的流程</span><span class="stat-icon">↻</span></div><div class="stat-number" id="activeCount">0</div></article>
@@ -593,8 +605,10 @@
     <div class="modal-actions"><button class="btn" id="doneSafetyDialog" type="button">完成</button></div>
   </dialog>
 
-  <dialog id="syncDialog">
-    <div class="modal-head"><h2>状态同步</h2><button class="close-btn" id="closeSyncDialog" type="button" aria-label="关闭">×</button></div>
+  <section class="panel" id="autofollow" aria-labelledby="autofollowTitle" style="margin-bottom:20px">
+        <div class="panel-head"><div><h2 class="panel-title" id="autofollowTitle">自动跟进</h2><div class="panel-caption">接入官网后，投递状态自动更新到台账——待确认事项会标在左侧导航上</div></div></div>
+        <div class="panel-body" style="padding-top:16px">
+    
     <div class="form-body">
 
       <section id="syncSetup">
@@ -664,8 +678,21 @@
       </section>
 
     </div>
-    <div class="modal-actions"><button class="btn" id="doneSyncDialog" type="button">完成</button></div>
-  </dialog>
+    
+  </div>
+        </section>
+        <section class="panel" id="settings" aria-labelledby="settingsTitle" style="margin-bottom:20px">
+          <div class="panel-head"><div><h2 class="panel-title" id="settingsTitle">设置</h2><div class="panel-caption">数据安全与更多入口</div></div></div>
+          <div class="panel-body">
+            <div class="sync-toolbar">
+              <button class="btn" id="sideSafetyBtn2" type="button"><span class="icon">◇</span>数据安全与备份</button>
+              <button class="btn" id="sideExportBtn" type="button"><span class="icon">⇩</span>导出数据</button>
+              <a class="btn" href="/guide" target="_blank"><span class="icon">□</span>使用指南</a>
+              <a class="btn" id="sideConsoleLink" href="/console/" hidden><span class="icon">🎛</span>投递控制台（引擎面板）</a>
+            </div>
+            <p class="sync-hint" style="margin-top:12px">数据保存在本机浏览器，换设备请先「导出数据」。官网登录、抓包等引擎操作在「投递控制台」完成。</p>
+          </div>
+        </section>
 
   <dialog id="installDialog">
     <div class="modal-head"><h2>安装到手机桌面</h2><button class="close-btn" id="closeInstallDialog" type="button" aria-label="关闭">×</button></div>
@@ -1603,9 +1630,9 @@
 
       /* ==================== 直连控制台模式 ==================== */
 
-      // 由控制台同源托管（/tracker/）时直接用当前 origin，直连 API 无需跨域；独立部署时回落到配置地址
+      // 由控制台同源托管（根路径 / 或旧路径 /tracker/）时直接用当前 origin，直连 API 无需跨域；独立部署时回落到配置地址
       function hostedByConsole() {
-        return /^\/tracker(\/|$)/.test(location.pathname);
+        return location.pathname === '/' || /^\/tracker(\/|$)/.test(location.pathname);
       }
 
       function getConsoleBase() {
@@ -1809,11 +1836,11 @@
         const pendingCount = syncState.pending.length;
         badge.hidden = pendingCount === 0;
         badge.textContent = pendingCount;
-        if (!$('#syncDialog')) return;
+        if (!$('#autofollow')) return;
 
         const hasHandle = Boolean(syncFileHandle);
         const useDirect = consoleReachable === true;
-        $('#syncSetup').hidden = useDirect || hasHandle;
+        $('#syncSetup').hidden = useDirect || hasHandle || consoleReachable === null; // 探测未完成前不显示文件引导
         $('#syncConnected').hidden = !useDirect && !hasHandle;
         $('#syncConsoleRow').hidden = !useDirect;
         if (useDirect) renderSitesHealth();
@@ -1912,8 +1939,9 @@
 
       function openSyncDialog() {
         renderSyncPanel();
-        $('#syncDialog').showModal();
         probeConsole();
+        const el = $('#autofollow');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
       function escapeHtml(value) {
@@ -1975,6 +2003,7 @@
         renderJobPool();
         renderTable();
         renderUpcoming();
+        renderTodoStrip();
         renderSyncPanel();
       }
 
@@ -2064,6 +2093,23 @@
           });
           if (mappedSite) showToast(`已加入台账。可在「状态同步」接入${SITE_NAMES[mappedSite]}官网，自动跟进投递状态`);
         }
+      }
+
+      function renderTodoStrip() {
+        const now = new Date();
+        const seven = new Date(now.getTime() + 7 * 86400000);
+        const upcoming = records.filter(r => { const d = parseLocal(r.scheduleAt); return d && d >= now && d <= seven && !['Offer', '已结束'].includes(r.stage); }).length;
+        const appliedKeys = new Set();
+        for (const record of records) {
+          for (const [key, aliases] of Object.entries(SITE_ALIASES)) {
+            const hay = String(record.company || '').toLowerCase();
+            if ((consoleState === null || consoleState.sites.some(x => x.key === key)) && aliases.some(a => hay.includes(a.toLowerCase()) && hay.length >= 2)) appliedKeys.add(key);
+          }
+        }
+        const needLogin = consoleState ? appliedKeys.size ? [...appliedKeys].filter(k => { const s2 = (consoleState.sites || []).find(x => x.key === k); return s2 && !s2.hasProfile; }).length : 0 : null;
+        $('#todoConfirmN').textContent = syncState.pending.length;
+        $('#todoUpcomingN').textContent = upcoming;
+        $('#todoOnboardN').textContent = needLogin === null ? '–' : needLogin;
       }
 
       function renderStats() {
@@ -2755,7 +2801,10 @@
           installButton.hidden = true;
           showToast('秋招投递管理器已安装到桌面');
         });
-        if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+        // 同源托管在控制台根路径时，Service Worker 作用域会覆盖整个 origin（含 /console/），故托管态不注册，并清掉历史注册
+        if ('serviceWorker' in navigator && hostedByConsole()) {
+          navigator.serviceWorker.getRegistrations().then(list => list.forEach(reg => reg.unregister())).catch(() => {});
+        } else if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
           window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => {}), { once: true });
         }
       }
@@ -2783,7 +2832,6 @@
       $('#captureUrlBtn').addEventListener('click', openCaptureDialog);
       $('#captureScreenshotBtn').addEventListener('click', openScreenshotDialog);
       $('#installAppBtn').addEventListener('click', requestAppInstall);
-      $('#sideScreenshotBtn').addEventListener('click', openScreenshotDialog);
       $('#syncJobsBtn').addEventListener('click', openJobSyncDialog);
       $('#jobSearchInput').addEventListener('input', () => { jobPage = 1; renderJobPool(); });
       $('#jobCategoryFilter').addEventListener('change', () => { jobPage = 1; renderJobPool(); });
@@ -2800,8 +2848,12 @@
         showToast('岗位库已清空，投递记录未改变');
       });
       $('#safetyBtn').addEventListener('click', openSafetyDialog);
-      $('#sideSafetyBtn').addEventListener('click', openSafetyDialog);
+      $('#sideSafetyBtn2').addEventListener('click', openSafetyDialog);
+      $('#sideExportBtn').addEventListener('click', exportData);
       $('#sideSyncBtn').addEventListener('click', openSyncDialog);
+      $('#todoConfirm').addEventListener('click', openSyncDialog);
+      $('#todoOnboard').addEventListener('click', openSyncDialog);
+      $('#todoUpcoming').addEventListener('click', () => $('#records').scrollIntoView({ behavior: 'smooth', block: 'start' }));
       $('#exportBtn').addEventListener('click', exportData);
       document.querySelectorAll('.nav-item[href]').forEach(link => {
         link.addEventListener('click', () => {
@@ -2896,14 +2948,12 @@
         const select = btn.closest('.sync-card')?.querySelector('select[data-cand-key]');
         resolvePending(btn.dataset.key, btn.dataset.syncAction, select ? (select.value || null) : null);
       });
-      $('#closeSyncDialog').addEventListener('click', () => $('#syncDialog').close());
-      $('#doneSyncDialog').addEventListener('click', () => $('#syncDialog').close());
-      closeOnBackdrop('#syncDialog', () => $('#syncDialog').close());
       $('#closeInstallDialog').addEventListener('click', () => $('#installDialog').close());
       $('#doneInstallDialog').addEventListener('click', () => $('#installDialog').close());
       closeOnBackdrop('#installDialog', () => $('#installDialog').close());
       if (hostedByConsole()) $('#sideConsoleLink').hidden = false;
       initializeDataSafety();
+      probeConsole(); // 自动跟进区块常驻可见，加载即探测控制台
       initializeMobileApp();
       consumeQuickCapture();
     })();
