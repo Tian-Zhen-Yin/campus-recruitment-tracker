@@ -392,6 +392,7 @@
     .sync-site-right .sub { font-size: 12px; text-align: right; }
     .sync-site-actions { display: flex; gap: 6px; flex: 0 0 auto; }
     .sync-site-actions .btn { min-height: 28px; padding: 0 9px; font-size: 12px; border-radius: 8px; }
+    .sync-site-caption { color: var(--muted); font-size: 12px; padding: 2px 2px 8px; }
   </style>
 </head>
 <body>
@@ -1679,38 +1680,28 @@
         }
       }
 
+      
+      // 公司驱动视图：台账里投递了哪家公司，才展示哪家官网的接入状态
       function renderSitesHealth() {
         const list = $('#syncSitesList');
         const sites = (consoleState && consoleState.sites) || [];
         if (!sites.length) { list.hidden = true; return; }
-        list.hidden = false;
-        list.innerHTML = sites.map(s => {
-          let dot = 'err', text = '未登录（在控制台完成常驻登录）';
-          if (s.hasProfile && s.hasSpec) {
-            dot = 'ok';
-            text = s.last ? `${formatClock(s.last.at)} 查到 ${(s.last.records || []).length} 条 · ${s.last.via === 'api' ? 'API 直连' : '页面模式'}` : '就绪，尚未查询';
-          } else if (s.hasProfile && s.hasSeeds) {
-            dot = 'warn'; text = '已登录，用预置接口（建议抓包校准）';
-          } else if (s.hasProfile) {
-            dot = 'warn'; text = '已登录，缺接口——在控制台点「抓包」';
-          }
-          return `<div class="sync-site"><span><span class="sync-dot ${dot}"></span>${escapeHtml(s.label)}</span><span class="sub">${escapeHtml(text)}</span></div>`;
-        }).join('');
-      }
-
-      function renderSitesHealth() {
-        const list = $('#syncSitesList');
-        const sites = (consoleState && consoleState.sites) || [];
-        if (!sites.length) { list.hidden = true; return; }
-        list.hidden = false;
         const sessions = (consoleState && consoleState.sessions) || [];
-        list.innerHTML = sites.map(s => {
+        const activeSites = sites.filter(s => records.some(record => companyMatches(record, { site: s.key, company: s.label, companyAliases: SITE_ALIASES[s.key] || [] })));
+        const idleSites = sites.filter(s => !activeSites.includes(s));
+        if (!activeSites.length) {
+          list.hidden = false;
+          list.innerHTML = '<div class="job-empty">台账中还没有可自动查询的投递。<br>从岗位库投递后，这里会出现对应公司的官网接入状态。</div>';
+          return;
+        }
+        list.innerHTML = '<div class="sync-site-caption">按台账中已投递的公司展示（投递后自动出现对应官网）</div>'
+          + activeSites.map(s => {
           const loginSess = sessions.find(x => x.kind === 'login' && x.site === s.key);
-          let dot = 'err', text = '未登录';
+          let dot = 'err', text = '未登录——点「登录接入」开启官网查询';
           if (loginSess) { dot = 'warn'; text = '登录窗口已打开，完成扫码后点「登录完成」'; }
           else if (s.hasProfile && s.hasSpec) {
             dot = 'ok';
-            text = s.last ? `${formatClock(s.last.at)} 查到 ${(s.last.records || []).length} 条 · ${s.last.via === 'api' ? 'API 直连' : '页面模式'}` : '就绪，尚未查询';
+            text = s.last ? `${formatClock(s.last.at)} 查到 ${(s.last.records || []).length} 条 · ${s.last.via === 'api' ? 'API 直连' : '页面模式'}` : '已接入，尚未查询';
           } else if (s.hasProfile && s.hasSeeds) {
             dot = 'warn'; text = '已登录，用预置接口（建议抓包校准）';
           } else if (s.hasProfile) {
@@ -1722,14 +1713,15 @@
             actions = `<button class="btn btn-small btn-primary" data-console-action="login-confirm" data-id="${escapeHtml(loginSess.id)}" data-label="${escapeHtml(s.label)}" type="button">登录完成</button>
                        <button class="btn btn-small" data-console-action="login-abort" data-id="${escapeHtml(loginSess.id)}" data-label="${escapeHtml(s.label)}" type="button">放弃</button>`;
           } else {
-            actions = `${!s.hasProfile ? `<button class="btn btn-small" data-console-action="login" data-site="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label)}" type="button" ${disabled}>登录</button>` : ''}`
+            actions = `${!s.hasProfile ? `<button class="btn btn-small" data-console-action="login" data-site="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label)}" type="button" ${disabled}>登录接入</button>` : ''}`
               + `${s.hasProfile ? `<button class="btn btn-small" data-console-action="query" data-site="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label)}" type="button" ${disabled}>查此站</button>` : ''}`;
           }
           return `<div class="sync-site">
             <span><span class="sync-dot ${dot}"></span>${escapeHtml(s.label)}</span>
             <span class="sync-site-right"><span class="sub">${escapeHtml(text)}</span><span class="sync-site-actions">${actions}</span></span>
           </div>`;
-        }).join('');
+        }).join('')
+          + (idleSites.length ? `<div class="sync-site-caption">其余 ${idleSites.length} 个已支持站点暂无投递记录：${escapeHtml(idleSites.map(s => s.label).join('、'))}（投递后自动出现）</div>` : '');
       }
 
       async function consoleApi(path, body) {
@@ -2058,6 +2050,12 @@
           }));
           saveRecords('已加入投递记录并自动保存');
           render();
+          // 公司驱动接入：投递的公司若在支持列表里，引导去状态同步接入官网查询
+          const mappedSite = Object.keys(SITE_ALIASES).find(key => {
+            const hay = String(job.company || '').toLowerCase();
+            return (SITE_ALIASES[key] || []).some(alias => hay.includes(alias.toLowerCase()) || alias.toLowerCase().includes(hay)) && hay.length >= 2;
+          });
+          if (mappedSite) showToast(`已加入台账。可在「状态同步」接入${SITE_NAMES[mappedSite]}官网，自动跟进投递状态`);
         }
       }
 
