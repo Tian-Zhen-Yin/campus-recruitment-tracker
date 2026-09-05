@@ -223,7 +223,9 @@
     .job-pool-actions { display: flex; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
     .job-source { display: inline-flex; align-items: center; gap: 5px; color: var(--primary); text-decoration: none; font-size: 12px; font-weight: 700; }
     .job-source:hover { text-decoration: underline; text-underline-offset: 3px; }
-    .job-pool-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 12px; align-items: center; padding: 15px 22px; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
+    .job-pool-toolbar { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(170px, auto) auto; gap: 12px; align-items: center; padding: 15px 22px; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
+    .job-pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 4px 22px 20px; }
+    .job-pager-info { color: var(--muted); font-size: 13px; }
     .job-sync-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
     .job-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 18px 22px 22px; }
     .job-card { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: .18s ease; }
@@ -453,9 +455,11 @@
       </div>
       <div class="job-pool-toolbar">
         <div class="search-wrap"><span class="search-glyph">⌕</span><input class="control" id="jobSearchInput" type="search" placeholder="搜索公司、岗位或城市" aria-label="搜索岗位库"></div>
+        <select class="control" id="jobCategoryFilter" aria-label="按招聘类型筛选"><option value="all">全部类型</option></select>
         <div class="job-sync-meta" id="jobSyncMeta">尚未同步岗位</div>
       </div>
       <div class="job-list" id="jobList"></div>
+      <div class="job-pager" id="jobPager"></div>
     </section>
 
     <div class="dashboard">
@@ -744,6 +748,9 @@
       let consoleState = null;      // 控制台 /api/state 的最近一次返回
       let consoleReachable = null;  // null=未探测 true/false
       let consoleQueryRunning = false;
+      let jobPage = 1;
+      let jobPoolTotalPages = 1;
+      const JOB_PAGE_SIZE = 12;
 
       function dateOffset(days, hour = 10, minute = 0) {
         const d = new Date();
@@ -1863,13 +1870,34 @@
 
       function renderJobPool() {
         const keyword = $('#jobSearchInput').value.trim().toLocaleLowerCase('zh-CN');
-        const visible = jobs.filter(job => !keyword || `${job.company} ${job.position} ${job.city} ${job.category}`.toLocaleLowerCase('zh-CN').includes(keyword));
-        const shown = visible.slice(0, 60);
+        const categorySel = $('#jobCategoryFilter');
+        const category = categorySel.value || 'all';
+        // 分类下拉：从岗位数据里聚合招聘类型，保留当前选择
+        const categories = [...new Set(jobs.map(job => (job.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+        categorySel.innerHTML = `<option value="all">全部类型（${jobs.length}）</option>`
+          + categories.map(cat => {
+            const count = jobs.filter(job => (job.category || '').trim() === cat).length;
+            return `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}（${count}）</option>`;
+          }).join('');
+        categorySel.value = category;
+        if (categorySel.value !== category) categorySel.value = 'all';
+
+        const visible = jobs.filter(job => {
+          const matchesKeyword = !keyword || `${job.company} ${job.position} ${job.city} ${job.category}`.toLocaleLowerCase('zh-CN').includes(keyword);
+          const matchesCategory = categorySel.value === 'all' || (job.category || '').trim() === categorySel.value;
+          return matchesKeyword && matchesCategory;
+        });
+        const totalPages = Math.max(1, Math.ceil(visible.length / JOB_PAGE_SIZE));
+        if (jobPage > totalPages) jobPage = totalPages;
+        jobPoolTotalPages = totalPages;
+        const shown = visible.slice((jobPage - 1) * JOB_PAGE_SIZE, jobPage * JOB_PAGE_SIZE);
         $('#jobSyncMeta').textContent = jobPoolUpdatedAt
-          ? `本地岗位 ${jobs.length} 条 · 最近同步 ${formatClock(jobPoolUpdatedAt)}${visible.length !== jobs.length ? ` · 找到 ${visible.length} 条` : ''}`
+          ? `本地岗位 ${jobs.length} 条 · 最近同步 ${formatClock(jobPoolUpdatedAt)}${visible.length !== jobs.length ? ` · 筛出 ${visible.length} 条` : ''}`
           : '尚未同步岗位';
+        const pager = $('#jobPager');
         if (!shown.length) {
           $('#jobList').innerHTML = `<div class="job-empty">${jobs.length ? '没有找到符合条件的岗位' : '点击“同步腾讯文档”，建立你的本地岗位库'}</div>`;
+          pager.innerHTML = '';
           return;
         }
         $('#jobList').innerHTML = shown.map(job => {
@@ -1883,7 +1911,20 @@
               <button class="btn btn-soft btn-small" data-job-action="applied" data-job-id="${escapeHtml(job.id)}" type="button" ${alreadyAdded ? 'disabled' : ''}>${alreadyAdded ? '已在记录中' : '记为已投递'}</button>
             </div>
           </article>`;
-        }).join('') + (visible.length > shown.length ? `<div class="job-empty">已显示前 ${shown.length} 条，请使用搜索快速定位岗位</div>` : '');
+        }).join('');
+        pager.innerHTML = totalPages <= 1 ? '' : `
+          <button class="btn btn-small" data-job-page="prev" type="button" ${jobPage === 1 ? 'disabled' : ''}>← 上一页</button>
+          <span class="job-pager-info">第 ${jobPage} / ${totalPages} 页 · 共 ${visible.length} 条</span>
+          <button class="btn btn-small" data-job-page="next" type="button" ${jobPage === totalPages ? 'disabled' : ''}>下一页 →</button>`;
+      }
+
+      function handleJobPager(event) {
+        const btn = event.target.closest('button[data-job-page]');
+        if (!btn || btn.disabled) return;
+        if (btn.dataset.jobPage === 'prev' && jobPage > 1) jobPage -= 1;
+        if (btn.dataset.jobPage === 'next' && jobPage < jobPoolTotalPages) jobPage += 1;
+        renderJobPool();
+        $('#jobPool').scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
       function handleJobAction(event) {
@@ -2628,7 +2669,9 @@
       $('#installAppBtn').addEventListener('click', requestAppInstall);
       $('#sideScreenshotBtn').addEventListener('click', openScreenshotDialog);
       $('#syncJobsBtn').addEventListener('click', openJobSyncDialog);
-      $('#jobSearchInput').addEventListener('input', renderJobPool);
+      $('#jobSearchInput').addEventListener('input', () => { jobPage = 1; renderJobPool(); });
+      $('#jobCategoryFilter').addEventListener('change', () => { jobPage = 1; renderJobPool(); });
+      $('#jobPager').addEventListener('click', handleJobPager);
       $('#jobList').addEventListener('click', handleJobAction);
       $('#clearJobPoolBtn').addEventListener('click', () => {
         if (!jobs.length) return showToast('岗位库目前是空的');

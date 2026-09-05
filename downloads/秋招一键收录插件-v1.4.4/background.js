@@ -210,6 +210,7 @@ function parseSheetChunk(json) {
   let rows = {};
   try { rows = inner[0]['1'].c['2']['1'] || {}; } catch (_) { rows = {}; }
   const fields = {};
+  const fieldOptions = {};
   (function findFields(node, depth) {
     if (depth > 10) return;
     if (Array.isArray(node)) { node.forEach(item => findFields(item, depth + 1)); return; }
@@ -219,12 +220,19 @@ function parseSheetChunk(json) {
         if (value && typeof value === 'object' && !Array.isArray(value)
           && typeof value['30'] === 'string' && value['30'].length <= 20 && !fields[key]) {
           fields[key] = value['30'];
+          // 单选字段的选项对照表：key "9" 下 {3:[{1:选项ID, 2:选项名}, ...]}
+          const opts = value['9'] && value['9']['3'];
+          if (Array.isArray(opts)) {
+            const map = {};
+            opts.forEach(opt => { if (opt && typeof opt['1'] === 'string' && typeof opt['2'] === 'string') map[opt['1']] = opt['2']; });
+            if (Object.keys(map).length) fieldOptions[key] = map;
+          }
         }
         findFields(value, depth + 1);
       }
     }
   })(schemaRec, 0);
-  return { fields, rows };
+  return { fields, fieldOptions, rows };
 }
 
 function sheetCellToValue(cell) {
@@ -264,6 +272,7 @@ async function syncTencentJobsApi(url) {
   if (!localPadId) throw new Error('没有读到文档信息，请确认已登录腾讯文档且有查看权限。');
 
   const fields = {};
+  const fieldOptions = {};
   let fieldsReady = false;
   const collected = new Map();
   const step = 60;
@@ -277,6 +286,7 @@ async function syncTencentJobsApi(url) {
     if (!chunk) break;
     if (!fieldsReady && Object.keys(chunk.fields).length) {
       Object.assign(fields, chunk.fields);
+      Object.assign(fieldOptions, chunk.fieldOptions || {});
       fieldsReady = true;
     }
     const ids = Object.keys(chunk.rows);
@@ -293,7 +303,16 @@ async function syncTencentJobsApi(url) {
   const rows = [];
   for (const rowId of collected.keys()) {
     const cellsMap = (collected.get(rowId) && collected.get(rowId)['1']) || {};
-    const values = fieldIds.map(fieldId => ({ name: fields[fieldId], value: sheetCellToValue(cellsMap[fieldId]) }));
+    const values = fieldIds.map(fieldId => {
+      const cell = cellsMap[fieldId];
+      // 单选字段：键 "9" 下是选项 ID 列表，用字段定义里的对照表还原成选项名称
+      if (cell && Array.isArray(cell['9'])) {
+        const opts = fieldOptions[fieldId] || {};
+        const names = cell['9'].map(id => opts[id]).filter(Boolean);
+        return { name: fields[fieldId], value: { text: names.join('、'), link: '' } };
+      }
+      return { name: fields[fieldId], value: sheetCellToValue(cell) };
+    });
     // 注意：cells 必须与表头等长（空单元格保留 '' 占位），否则台账按表头下标取列会错位
     const texts = values.map(item => item.value.text);
     const isNoiseUrl = u => /qlogo\.cn|thirdwx\./i.test(u);
