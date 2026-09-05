@@ -1,0 +1,22 @@
+:root { --ink:#172033; --muted:#697386; --line:#e5eaf3; --primary:#5367e9; --soft:#eef0ff; }
+* { box-sizing:border-box; }
+body { margin:0; width:340px; background:#f7f9fd; color:var(--ink); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+main { padding:18px; }
+.brand { display:flex; gap:11px; align-items:center; margin-bottom:16px; }
+.mark { display:grid; place-items:center; width:40px; height:40px; border-radius:12px; color:#fff; background:linear-gradient(145deg,#7182f2,#4659d9); font-size:20px; }
+h1 { margin:0; font-size:17px; }
+p { margin:1px 0 0; color:var(--muted); font-size:12px; }
+.preview { min-height:92px; padding:14px; border:1px solid var(--line); border-radius:13px; background:#fff; margin-bottom:12px; }
+.placeholder { color:var(--muted); font-size:13px; }
+.item { margin-bottom:7px; }
+.item:last-child { margin-bottom:0; }
+.label { display:inline-block; width:45px; color:var(--muted); font-size:12px; }
+.value { font-weight:650; overflow-wrap:anywhere; }
+button { width:100%; min-height:42px; border:0; border-radius:11px; font:inherit; font-weight:700; cursor:pointer; }
+.primary { color:#fff; background:var(--primary); }
+.primary:hover { background:#4053cb; }
+.primary:disabled { opacity:.55; cursor:wait; }
+.settings { min-height:32px; margin-top:4px; color:var(--muted); background:transparent; font-size:12px; font-weight:600; }
+.settings:hover { color:var(--primary); background:var(--soft); }
+.status { min-height:20px; padding-top:7px; text-align:center; color:var(--muted); font-size:12px; }
+.status.error { color:#c44747; }

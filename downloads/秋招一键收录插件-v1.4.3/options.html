@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>秋招一键收录设置</title>
+  <style>
+    body{margin:0;background:#f6f8fc;color:#172033;font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}.card{max-width:680px;margin:60px auto;padding:30px;background:#fff;border:1px solid #e5eaf3;border-radius:18px;box-shadow:0 8px 28px rgba(33,45,75,.07)}h1{margin:0 0 8px;font-size:24px}p{color:#697386}label{display:block;margin:24px 0 7px;font-weight:700}input{width:100%;box-sizing:border-box;min-height:44px;padding:10px 12px;border:1px solid #dce2ed;border-radius:10px;font:inherit}button{margin-top:14px;min-height:42px;padding:0 18px;border:0;border-radius:10px;background:#5367e9;color:#fff;font:inherit;font-weight:700;cursor:pointer}.status{display:inline-block;margin-left:12px;color:#24855f}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>管理器位置设置</h1>
+    <p>如果移动了秋招管理器网页，请先在浏览器里打开新版 <strong>index.html</strong>，复制地址栏里的完整地址，再粘贴到这里。</p>
+    <label for="trackerUrl">秋招管理器网页地址</label>
+    <input id="trackerUrl" type="url" spellcheck="false" placeholder="先打开管理器，插件会自动记录这里">
+    <button id="saveBtn" type="button">保存设置</button><span class="status" id="status"></span>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

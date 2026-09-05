@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>秋招一键收录</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <div class="brand"><span class="mark">↗</span><div><h1>秋招一键收录</h1><p>自动识别当前岗位页面</p></div></div>
+    <div class="preview" id="preview">
+      <div class="placeholder">点击下方按钮，将当前岗位发送到管理器确认。</div>
+    </div>
+    <button class="primary" id="captureBtn" type="button">识别并收录当前岗位</button>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+    <button class="settings" id="settingsBtn" type="button">管理器位置设置</button>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
