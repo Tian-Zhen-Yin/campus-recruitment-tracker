@@ -384,6 +384,8 @@
     .sync-card select.control { min-height: 34px; max-width: 100%; padding-top: 0; padding-bottom: 0; font-size: 13px; }
     .sync-allclear { text-align: center; color: var(--green); font-weight: 700; font-size: 14px; padding: 12px 0 4px; }
     .sync-hint { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--surface-soft); border: 1px dashed var(--line); color: var(--muted); font-size: 12.5px; line-height: 1.8; }
+    .sync-sites { display: grid; gap: 6px; margin: 10px 0 14px; }
+    .sync-site { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
   </style>
 </head>
 <body>
@@ -499,7 +501,7 @@
           <div class="field"><label for="position">岗位 <span class="required">*</span></label><input class="control" id="position" name="position" required maxlength="80" placeholder="例如：产品经理校招生"></div>
           <div class="field"><label for="city">城市 <span class="required">*</span></label><input class="control" id="city" name="city" required maxlength="30" placeholder="例如：上海"></div>
           <div class="field"><label for="applicationDate">投递日期 <span class="required">*</span></label><input class="control" id="applicationDate" name="applicationDate" type="date" required></div>
-          <div class="field"><label for="stage">当前阶段 <span class="required">*</span></label><select class="control" id="stage" name="stage" required></select></div>
+          <div class="field"><label for="stage">当前阶段 <span class="required">*</span></label><select class="control" id="stage" name="stage" required><option value="" disabled selected hidden></option></select></div>
           <div class="field"><label for="scheduleAt">安排时间</label><input class="control" id="scheduleAt" name="scheduleAt" type="datetime-local"><div class="hint">有面试、笔试或跟进时间时填写</div></div>
           <div class="field full"><label for="applicationUrl">投递网址</label><input class="control" id="applicationUrl" name="applicationUrl" type="url" maxlength="1000" placeholder="https://jobs.example.com/position/123"><div class="hint">通过一键收录插件添加时会自动填写</div></div>
           <div class="field full"><label for="recentSchedule">最近安排</label><input class="control" id="recentSchedule" name="recentSchedule" maxlength="100" placeholder="例如：线上一面（腾讯会议）"></div>
@@ -595,6 +597,16 @@
       </section>
 
       <section id="syncConnected" hidden>
+        <div class="sync-file-row" id="syncConsoleRow">
+          <div>
+            <div class="sync-file-name">🖥 投递控制台（直连）</div>
+            <div class="sync-file-sub" id="syncConsoleSub"><span class="sync-dot ok"></span>已连接</div>
+          </div>
+          <button class="btn btn-primary btn-small" id="syncQueryBtn" type="button">一键查状态</button>
+        </div>
+        <div class="capture-status" id="syncQueryStatus" role="status" aria-live="polite" hidden></div>
+        <div class="sync-sites" id="syncSitesList" hidden></div>
+
         <div class="sync-file-row">
           <div>
             <div class="sync-file-name" id="syncFileName">tracker-sync.json</div>
@@ -675,6 +687,12 @@
       const SCHEMA_VERSION = 1;
       const APP_VERSION = '3.0.0';
       const SAFETY_DB_NAME = 'autumnRecruitmentTracker.safety.v1';
+      // 损坏数据隔离键：主数据解析失败时先把原文原文保全到这里，绝不用示例数据覆盖主键
+      const RESCUE_KEY = 'autumnRecruitmentTracker.records.rescue.v1';
+      // 终态阶段：所有"是否已终结"的判断统一从这里取，避免多处列表漂移
+      const TERMINAL_STAGES = ['Offer', '已结束'];
+      // 城市白名单：岗位表格解析与截图识别共用一份（两处词表的并集）
+      const CITY_WHITELIST = ['北京', '上海', '广州', '深圳', '杭州', '南京', '苏州', '成都', '重庆', '武汉', '西安', '长沙', '天津', '厦门', '合肥', '郑州', '青岛', '济南', '宁波', '无锡', '珠海', '佛山', '东莞', '福州', '昆明', '南昌', '大连', '沈阳', '哈尔滨', '石家庄', '太原', '贵阳', '南宁', '海口', '兰州', '乌鲁木齐', '呼和浩特', '长春', '香港', '澳门', '全国', '远程'];
       // ===== 官方状态同步（tracker-sync）=====
       const SYNC_KEY = 'autumnRecruitmentTracker.syncState.v1';
       const SYNC_KIND = 'autumn-tracker-status-sync';
@@ -692,11 +710,13 @@
       const $ = (selector) => document.querySelector(selector);
       const els = {
         total: $('#totalCount'), today: $('#todayCount'), active: $('#activeCount'), week: $('#weekCount'), offer: $('#offerCount'),
-        stageGrid: $('#stageGrid'), body: $('#recordBody'), empty: $('#emptyState'), caption: $('#resultCaption'),
-        upcoming: $('#upcomingList'), search: $('#searchInput'), filter: $('#stageFilter'), sort: $('#sortSelect'),
+        stageGrid: $('#stageGrid'), tbody: $('#recordBody'), empty: $('#emptyState'), caption: $('#resultCaption'),
+        upcoming: $('#upcomingList'), search: $('#searchInput'), stageFilter: $('#stageFilter'), sort: $('#sortSelect'),
         dialog: $('#recordDialog'), form: $('#recordForm'), dialogTitle: $('#dialogTitle'), toast: $('#toast')
       };
       let primaryLoadState = 'unknown';
+      // 页面打开后是否发生过用户驱动的保存；用于快照自动恢复前的冲突守卫
+      let recordsMutated = false;
       let records = loadRecords();
       let jobs = loadJobs();
       let jobPoolUpdatedAt = loadJobPoolMeta();
@@ -721,6 +741,9 @@
       let syncLastModified = 0;
       let syncBusy = false;
       let lastSyncPayload = null;
+      let consoleState = null;      // 控制台 /api/state 的最近一次返回
+      let consoleReachable = null;  // null=未探测 true/false
+      let consoleQueryRunning = false;
 
       function dateOffset(days, hour = 10, minute = 0) {
         const d = new Date();
@@ -743,11 +766,11 @@
       function exampleRecords() {
         const now = Date.now();
         return [
-          { id: cryptoId(), company: '星海科技', position: '产品经理校招生', city: '上海', applicationDate: localDateInput(dateOffset(-12)), stage: '一面', scheduleAt: localDateTimeInput(dateOffset(1, 14, 0)), recentSchedule: '线上一面', nextAction: '梳理项目经历，准备三分钟自我介绍', updatedAt: now - 2000 },
-          { id: cryptoId(), company: '山岚智能', position: '算法工程师', city: '北京', applicationDate: localDateInput(dateOffset(-18)), stage: '笔试', scheduleAt: localDateTimeInput(dateOffset(3, 19, 0)), recentSchedule: '在线笔试', nextAction: '复习动态规划与概率题', updatedAt: now - 5000 },
-          { id: cryptoId(), company: '青禾互娱', position: '用户运营', city: '杭州', applicationDate: localDateInput(dateOffset(-7)), stage: '已投递', scheduleAt: localDateTimeInput(dateOffset(5, 10, 30)), recentSchedule: '邮件跟进招聘进度', nextAction: '检查邮箱并准备补充作品集', updatedAt: now - 8000 },
-          { id: cryptoId(), company: '远帆咨询', position: '商业分析顾问', city: '深圳', applicationDate: localDateInput(dateOffset(-28)), stage: '二面', scheduleAt: localDateTimeInput(dateOffset(8, 15, 0)), recentSchedule: '业务负责人面试', nextAction: '练习市场规模估算案例', updatedAt: now - 12000 },
-          { id: cryptoId(), company: '拾光设计', position: '交互设计师', city: '广州', applicationDate: localDateInput(dateOffset(-33)), stage: 'Offer', scheduleAt: '', recentSchedule: '已收到录用通知', nextAction: '确认入职时间并回复邮件', updatedAt: now - 15000 }
+          { id: cryptoId(), company: '星海科技', position: '产品经理校招生', city: '上海', applicationDate: localDateInput(dateOffset(-12)), stage: '一面', scheduleAt: localDateTimeInput(dateOffset(1, 14, 0)), recentSchedule: '线上一面', nextAction: '梳理项目经历，准备三分钟自我介绍', updatedAt: now - 2000, isExample: true },
+          { id: cryptoId(), company: '山岚智能', position: '算法工程师', city: '北京', applicationDate: localDateInput(dateOffset(-18)), stage: '笔试', scheduleAt: localDateTimeInput(dateOffset(3, 19, 0)), recentSchedule: '在线笔试', nextAction: '复习动态规划与概率题', updatedAt: now - 5000, isExample: true },
+          { id: cryptoId(), company: '青禾互娱', position: '用户运营', city: '杭州', applicationDate: localDateInput(dateOffset(-7)), stage: '已投递', scheduleAt: localDateTimeInput(dateOffset(5, 10, 30)), recentSchedule: '邮件跟进招聘进度', nextAction: '检查邮箱并准备补充作品集', updatedAt: now - 8000, isExample: true },
+          { id: cryptoId(), company: '远帆咨询', position: '商业分析顾问', city: '深圳', applicationDate: localDateInput(dateOffset(-28)), stage: '二面', scheduleAt: localDateTimeInput(dateOffset(8, 15, 0)), recentSchedule: '业务负责人面试', nextAction: '练习市场规模估算案例', updatedAt: now - 12000, isExample: true },
+          { id: cryptoId(), company: '拾光设计', position: '交互设计师', city: '广州', applicationDate: localDateInput(dateOffset(-33)), stage: 'Offer', scheduleAt: '', recentSchedule: '已收到录用通知', nextAction: '确认入职时间并回复邮件', updatedAt: now - 15000, isExample: true }
         ];
       }
 
@@ -768,12 +791,23 @@
           } else {
             primaryLoadState = 'missing';
           }
+          if (primaryLoadState === 'corrupt') {
+            // 先把无法解析的原文隔离保存，供人工抢救；绝不用示例数据覆盖主键
+            try { localStorage.setItem(RESCUE_KEY, raw); } catch (_) {}
+          }
         } catch (error) {
           primaryLoadState = 'corrupt';
           console.warn('无法读取本地记录', error);
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw !== null) localStorage.setItem(RESCUE_KEY, raw);
+          } catch (_) {}
         }
         const initial = exampleRecords();
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(initial)); } catch (error) { console.warn(error); }
+        // 仅在"从未有过数据"时把示例写入主键；损坏时保持原文不动，等快照恢复或用户操作
+        if (primaryLoadState === 'missing') {
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(initial)); } catch (error) { console.warn(error); }
+        }
         return initial;
       }
 
@@ -786,7 +820,8 @@
           scheduleAt: String(item.scheduleAt || ''), recentSchedule: String(item.recentSchedule || ''),
           nextAction: String(item.nextAction || ''), updatedAt: Number(item.updatedAt) || Date.now(),
           statusRaw: String(item.statusRaw || ''), statusSource: String(item.statusSource || ''),
-          lastSyncedAt: String(item.lastSyncedAt || '')
+          lastSyncedAt: String(item.lastSyncedAt || ''),
+          isExample: item.isExample === true
         };
       }
 
@@ -826,12 +861,23 @@
       }
 
       function saveJobs(incoming, message = '') {
-        const merged = new Map(jobs.map(job => [job.id, job]));
-        incoming.map(normalizeJob).filter(job => job.company && job.position).forEach(job => merged.set(job.id, job));
-        jobs = [...merged.values()];
-        jobPoolUpdatedAt = new Date().toISOString();
-        localStorage.setItem(JOB_POOL_KEY, JSON.stringify(jobs));
-        localStorage.setItem(JOB_POOL_META_KEY, JSON.stringify({ updatedAt: jobPoolUpdatedAt, count: jobs.length, sourceUrl: QQ_JOB_DOC_URL }));
+        const previousJobs = jobs;
+        const previousUpdatedAt = jobPoolUpdatedAt;
+        try {
+          const merged = new Map(jobs.map(job => [job.id, job]));
+          incoming.map(normalizeJob).filter(job => job.company && job.position).forEach(job => merged.set(job.id, job));
+          jobs = [...merged.values()];
+          jobPoolUpdatedAt = new Date().toISOString();
+          localStorage.setItem(JOB_POOL_KEY, JSON.stringify(jobs));
+          localStorage.setItem(JOB_POOL_META_KEY, JSON.stringify({ updatedAt: jobPoolUpdatedAt, count: jobs.length, sourceUrl: QQ_JOB_DOC_URL }));
+        } catch (error) {
+          // 保存失败（存储被禁用或配额已满）时回滚内存，避免界面与磁盘状态不一致
+          jobs = previousJobs;
+          jobPoolUpdatedAt = previousUpdatedAt;
+          console.warn('岗位库保存失败', error);
+          showToast('岗位库没能保存：浏览器本地存储不可用或已满');
+          return;
+        }
         renderJobPool();
         if (message) showToast(message);
       }
@@ -891,7 +937,6 @@
           return false;
         });
 
-        const cities = ['北京','上海','广州','深圳','杭州','南京','苏州','成都','重庆','武汉','西安','长沙','天津','厦门','合肥','郑州','青岛','济南','宁波','无锡','珠海','佛山','东莞','福州','昆明','南昌','大连','沈阳','哈尔滨','石家庄','太原','贵阳','南宁','海口','兰州','乌鲁木齐','呼和浩特','长春','香港','澳门'];
         const ignored = /腾讯文档|登录|注册|筛选|排序|视图|新建|分享|评论|工具栏|智能表格|加载中|搜索文档/;
         const parsed = [];
         rows.forEach((row, index) => {
@@ -911,7 +956,7 @@
             company ||= useful[0] || '';
             position ||= useful.find((cell, cellIndex) => cellIndex > 0 && /实习|校招|管培|工程师|开发|算法|产品|运营|设计|销售|顾问|分析|研究|职能|岗位|招聘/.test(cell)) || useful[1] || '';
           }
-          if (!city) city = cities.find(name => `${row.text} ${row.cells.join(' ')}`.includes(name)) || '';
+          if (!city) city = CITY_WHITELIST.find(name => `${row.text} ${row.cells.join(' ')}`.includes(name)) || '';
           if (!deadline) deadline = row.cells.find(cell => /(?:截止|长期|尽快|招满|20\d{2}[.\-/年]\d{1,2})/.test(cell)) || '';
           if (!category) category = row.cells.find(cell => /暑期|日常实习|秋招|春招|校招|管培|提前批/.test(cell)) || '';
           if (!company || !position || ignored.test(company) || ignored.test(position) || company === position) return;
@@ -921,6 +966,7 @@
       }
 
       function saveRecords(message) {
+        recordsMutated = true;
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
           if (message) showToast(message);
@@ -1042,11 +1088,16 @@
         try {
           const latest = await dbGet('state', 'latest');
           if (primaryLoadState !== 'valid' && Array.isArray(latest?.records)) {
-            records = latest.records.map(normalizeRecord);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-            primaryLoadState = 'valid';
-            render();
-            showToast(`已从安全快照恢复 ${records.length} 条记录`);
+            if (recordsMutated) {
+              // 等待读取快照期间用户已有新改动：不自动恢复，避免覆盖刚保存的数据
+              console.warn('跳过快照自动恢复：页面打开后已有新的改动');
+            } else {
+              records = latest.records.map(normalizeRecord);
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+              primaryLoadState = 'valid';
+              render();
+              showToast(`已从安全快照恢复 ${records.length} 条记录`);
+            }
           } else {
             await saveBrowserSnapshot(createEnvelope(records));
           }
@@ -1192,7 +1243,7 @@
       /* ==================== 官方状态同步（tracker-sync） ==================== */
 
       function loadSyncState() {
-        const fallback = { lastGeneratedAt: '', lastCheckedAt: '', lastSummary: '尚未同步', ignored: [], pending: [], stats: { applied: 0 }, checks: 0, checkDay: '', paused: false, needsAuth: false, lastError: '' };
+        const fallback = { lastGeneratedAt: '', lastCheckedAt: '', lastSummary: '尚未同步', ignored: [], pending: [], stats: { applied: 0 }, checks: 0, checkDay: '', paused: false, needsAuth: false, lastError: '', consoleUrl: 'http://127.0.0.1:7788' };
         try {
           const parsed = JSON.parse(localStorage.getItem(SYNC_KEY) || '{}');
           return { ...fallback, ...parsed, stats: { ...fallback.stats, ...(parsed.stats || {}) } };
@@ -1274,7 +1325,7 @@
           if (editedSinceLastSync(record)) return { action: 'queue', reason: 'override' };
           return { action: 'auto', stage: cls.stage };
         }
-        if (['Offer', '已结束'].includes(record.stage)) return { action: 'queue', reason: 'revive' };
+        if (isTerminalStage(record.stage)) return { action: 'queue', reason: 'revive' };
         if (cls.kind === 'promote') {
           const current = STAGES.indexOf(record.stage);
           const target = STAGES.indexOf(cls.stage);
@@ -1499,8 +1550,11 @@
       function startSyncPolling() {
         clearInterval(syncTimer);
         if (syncFileHandle) checkSyncFile(false);
+        else if (consoleReachable) pullTrackerSync();
         syncTimer = setInterval(() => {
-          if (!syncState.paused && syncFileHandle && !document.hidden) checkSyncFile(false);
+          if (syncState.paused || document.hidden) return;
+          if (syncFileHandle) checkSyncFile(false);
+          else if (consoleReachable) pullTrackerSync();
         }, SYNC_POLL_MS);
       }
 
@@ -1534,6 +1588,105 @@
         }[reason] || { cls: 't-fuzzy', tag: '待确认' };
       }
 
+      /* ==================== 直连控制台模式 ==================== */
+
+      function getConsoleBase() {
+        return String(syncState.consoleUrl || 'http://127.0.0.1:7788').replace(/\/+$/, '');
+      }
+
+      async function probeConsole() {
+        const base = getConsoleBase();
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2500);
+        try {
+          const resp = await fetch(base + '/api/state', { signal: ctrl.signal });
+          clearTimeout(timer);
+          if (!resp.ok) { consoleReachable = false; consoleState = null; }
+          else { consoleReachable = true; consoleState = await resp.json(); }
+        } catch (_) {
+          clearTimeout(timer);
+          consoleReachable = false;
+          consoleState = null;
+        }
+        renderSyncPanel();
+        return consoleReachable;
+      }
+
+      async function pullTrackerSync() {
+        const base = getConsoleBase();
+        try {
+          const payload = await fetch(base + '/api/tracker-sync').then(x => x.json());
+          const result = ingestPayload(payload, 'console');
+          if (result?.ok && (result.auto || result.pending)) {
+            showToast(`已自动应用 ${result.auto} 条官方状态${result.pending ? `，${result.pending} 条待你确认` : ''}`);
+          }
+        } catch (_) { /* 控制台可能暂时不可达，静默等下一轮 */ }
+      }
+
+      async function queryViaConsole() {
+        if (consoleQueryRunning) return;
+        const base = getConsoleBase();
+        const btn = $('#syncQueryBtn');
+        const statusBox = $('#syncQueryStatus');
+        consoleQueryRunning = true;
+        btn.disabled = true;
+        statusBox.hidden = false;
+        statusBox.className = 'capture-status';
+        const startedAt = Date.now();
+        try {
+          statusBox.textContent = '正在通知控制台开始查询…';
+          const resp = await fetch(base + '/api/status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
+          const started = await resp.json().catch(() => ({}));
+          if (!resp.ok || started.error) throw new Error(started.error || 'HTTP ' + resp.status);
+          for (;;) {
+            await new Promise(r => setTimeout(r, 1500));
+            const st = await fetch(base + '/api/state').then(x => x.json());
+            consoleState = st;
+            const busy = st.busy;
+            const elapsed = Math.round((Date.now() - startedAt) / 1000);
+            const lastLog = busy && busy.logs && busy.logs.length ? busy.logs[busy.logs.length - 1] : '';
+            statusBox.textContent = `正在查询（${elapsed}s）… ${lastLog}`;
+            if (!busy || busy.done) break;
+            if (elapsed > 480) throw new Error('查询超时，请到控制台查看进展');
+          }
+          const st = await fetch(base + '/api/state').then(x => x.json());
+          if (st.busy && st.busy.error) throw new Error(st.busy.error);
+          statusBox.textContent = '查询完成，正在拉取状态包…';
+          const payload = await fetch(base + '/api/tracker-sync').then(x => x.json());
+          const result = ingestPayload(payload, 'console');
+          if (result?.error) throw new Error('状态包解析失败');
+          statusBox.className = 'capture-status success';
+          statusBox.textContent = result?.stale ? '查询完成：状态无变化' : `查询完成：${syncState.lastSummary}`;
+          showToast(result?.pending ? `查询完成，${result.pending} 条待你确认` : '查询完成');
+        } catch (error) {
+          statusBox.className = 'capture-status error';
+          statusBox.textContent = `直连查询失败：${error.message || error}`;
+        } finally {
+          consoleQueryRunning = false;
+          btn.disabled = false;
+          renderSyncPanel();
+        }
+      }
+
+      function renderSitesHealth() {
+        const list = $('#syncSitesList');
+        const sites = (consoleState && consoleState.sites) || [];
+        if (!sites.length) { list.hidden = true; return; }
+        list.hidden = false;
+        list.innerHTML = sites.map(s => {
+          let dot = 'err', text = '未登录（在控制台完成常驻登录）';
+          if (s.hasProfile && s.hasSpec) {
+            dot = 'ok';
+            text = s.last ? `${formatClock(s.last.at)} 查到 ${(s.last.records || []).length} 条 · ${s.last.via === 'api' ? 'API 直连' : '页面模式'}` : '就绪，尚未查询';
+          } else if (s.hasProfile && s.hasSeeds) {
+            dot = 'warn'; text = '已登录，用预置接口（建议抓包校准）';
+          } else if (s.hasProfile) {
+            dot = 'warn'; text = '已登录，缺接口——在控制台点「抓包」';
+          }
+          return `<div class="sync-site"><span><span class="sync-dot ${dot}"></span>${escapeHtml(s.label)}</span><span class="sub">${escapeHtml(text)}</span></div>`;
+        }).join('');
+      }
+
       function renderSyncPanel() {
         const badge = $('#syncNavBadge');
         const pendingCount = syncState.pending.length;
@@ -1542,34 +1695,40 @@
         if (!$('#syncDialog')) return;
 
         const hasHandle = Boolean(syncFileHandle);
-        $('#syncSetup').hidden = hasHandle;
-        $('#syncConnected').hidden = !hasHandle;
+        const useDirect = consoleReachable === true;
+        $('#syncSetup').hidden = useDirect || hasHandle;
+        $('#syncConnected').hidden = !useDirect && !hasHandle;
+        $('#syncConsoleRow').hidden = !useDirect;
+        if (useDirect) renderSitesHealth();
         if (!hasHandle) {
-          const status = $('#syncSetupStatus');
-          status.hidden = !syncState.lastSummary || syncState.lastSummary === '尚未同步';
-          if (!status.hidden) {
-            status.className = 'capture-status success';
-            status.textContent = `上次同步：${syncState.lastSummary}（${syncState.lastCheckedAt ? formatClock(syncState.lastCheckedAt) : ''}）`;
+          if (!useDirect) {
+            const status = $('#syncSetupStatus');
+            status.hidden = !syncState.lastSummary || syncState.lastSummary === '尚未同步';
+            if (!status.hidden) {
+              status.className = 'capture-status success';
+              status.textContent = `上次同步：${syncState.lastSummary}（${syncState.lastCheckedAt ? formatClock(syncState.lastCheckedAt) : ''}）`;
+            }
           }
-          return;
+        } else {
+          $('#syncFileName').textContent = syncFileHandle.name || 'tracker-sync.json';
+          const sub = $('#syncFileSub');
+          if (syncState.needsAuth) sub.innerHTML = '<span class="sync-dot warn"></span>需要重新授权';
+          else if (syncState.lastError) sub.innerHTML = '<span class="sync-dot err"></span>读取异常';
+          else sub.innerHTML = `<span class="sync-dot ok"></span>已连接 · 上次检查 ${syncState.lastCheckedAt ? formatClock(syncState.lastCheckedAt) : '尚未执行'} · ${syncState.lastSummary || '尚未同步'}`;
         }
-
-        $('#syncFileName').textContent = syncFileHandle.name || 'tracker-sync.json';
-        const sub = $('#syncFileSub');
-        if (syncState.needsAuth) sub.innerHTML = '<span class="sync-dot warn"></span>需要重新授权';
-        else if (syncState.lastError) sub.innerHTML = '<span class="sync-dot err"></span>读取异常';
-        else sub.innerHTML = `<span class="sync-dot ok"></span>已连接 · 上次检查 ${syncState.lastCheckedAt ? formatClock(syncState.lastCheckedAt) : '尚未执行'} · ${syncState.lastSummary || '尚未同步'}`;
-        $('#syncPauseState').textContent = syncState.paused ? '⏸ 自动检查已暂停' : '';
+        const fileOnly = hasHandle;
+        $('#syncCheckBtn').hidden = !fileOnly;
+        $('#syncChangeBtn').hidden = !fileOnly;
+        $('#syncRegrantBtn').hidden = !fileOnly || !syncState.needsAuth;
+        $('#syncAuthBox').hidden = !fileOnly || !syncState.needsAuth;
         $('#syncAppliedCount').textContent = syncState.stats.applied || 0;
         $('#syncPendingCount').textContent = pendingCount;
         $('#syncPendingStat').classList.toggle('is-hot', pendingCount > 0);
         $('#syncCheckCount').textContent = syncState.checks || 0;
         $('#syncPauseBtn').textContent = syncState.paused ? '恢复自动' : '暂停自动';
-        $('#syncRegrantBtn').hidden = !syncState.needsAuth;
-        $('#syncAuthBox').hidden = !syncState.needsAuth;
         const errorBox = $('#syncErrorBox');
-        errorBox.hidden = !syncState.lastError;
-        errorBox.textContent = syncState.lastError || '';
+        errorBox.hidden = !fileOnly || !syncState.lastError;
+        errorBox.textContent = fileOnly ? (syncState.lastError || '') : '';
 
         const queueArea = $('#syncQueueArea');
         const allClear = $('#syncAllClear');
@@ -1637,6 +1796,7 @@
       function openSyncDialog() {
         renderSyncPanel();
         $('#syncDialog').showModal();
+        probeConsole();
       }
 
       function escapeHtml(value) {
@@ -1662,13 +1822,17 @@
         return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
       }
 
+      function isTerminalStage(stage) {
+        return TERMINAL_STAGES.includes(stage);
+      }
+
       function isActive(record) {
-        return !['待投递', 'Offer', '已结束'].includes(record.stage);
+        return record.stage !== '待投递' && !isTerminalStage(record.stage);
       }
 
       function getVisibleRecords() {
         const keyword = els.search.value.trim().toLocaleLowerCase('zh-CN');
-        const stage = els.filter.value;
+        const stage = els.stageFilter.value;
         const filtered = records.filter(record => {
           const matchesText = !keyword || `${record.company} ${record.position}`.toLocaleLowerCase('zh-CN').includes(keyword);
           return matchesText && (stage === 'all' || record.stage === stage);
@@ -1748,11 +1912,13 @@
       function renderStats() {
         const now = new Date();
         const sevenDays = new Date(now.getTime() + 7 * 86400000);
-        els.total.textContent = records.length;
-        els.today.textContent = records.filter(r => r.applicationDate === localDateInput(now)).length;
-        els.active.textContent = records.filter(isActive).length;
-        els.week.textContent = records.filter(r => { const d = parseLocal(r.scheduleAt); return d && d >= now && d <= sevenDays; }).length;
-        els.offer.textContent = records.filter(r => r.stage === 'Offer').length;
+        // 示例数据只做展示，不计入统计，避免误读
+        const real = records.filter(r => !r.isExample);
+        els.total.textContent = real.length;
+        els.today.textContent = real.filter(r => r.applicationDate === localDateInput(now)).length;
+        els.active.textContent = real.filter(isActive).length;
+        els.week.textContent = real.filter(r => { const d = parseLocal(r.scheduleAt); return d && d >= now && d <= sevenDays; }).length;
+        els.offer.textContent = real.filter(r => r.stage === 'Offer').length;
       }
 
       function renderDistribution() {
@@ -1768,9 +1934,9 @@
       function renderTable() {
         const visible = getVisibleRecords();
         els.caption.textContent = visible.length === records.length ? `共 ${records.length} 条记录` : `显示 ${visible.length} 条，共 ${records.length} 条`;
-        els.body.innerHTML = visible.map(record => {
+        els.tbody.innerHTML = visible.map(record => {
           const scheduleDate = parseLocal(record.scheduleAt);
-          const overdue = scheduleDate && scheduleDate < new Date() && !['Offer', '已结束'].includes(record.stage);
+          const overdue = scheduleDate && scheduleDate < new Date() && !isTerminalStage(record.stage);
           const canAdvance = record.stage !== '已结束';
           const companyHtml = record.applicationUrl
             ? `<a class="company-link" href="${escapeHtml(record.applicationUrl)}" target="_blank" rel="noopener noreferrer" title="打开投递网页">${escapeHtml(record.company)} ↗</a>`
@@ -1779,11 +1945,12 @@
             ? ` title="官方状态：${escapeHtml(record.statusRaw)}（来自${escapeHtml(SITE_NAMES[record.statusSource] || record.statusSource || '官方')} · ${record.lastSyncedAt ? escapeHtml(formatClock(record.lastSyncedAt)) + ' 同步' : '待同步'}）"`
             : '';
           const syncBadge = record.statusRaw ? `<span class="sync-badge"${syncTip}>${escapeHtml(String(record.statusRaw).slice(0, 6))}</span>` : '';
+          const exampleBadge = record.isExample ? '<span class="sync-badge" title="这是示例数据，可以直接删除">示例</span>' : '';
           return `<tr>
             <td data-label="公司 / 岗位"><div class="company">${companyHtml}</div><div class="position">${escapeHtml(record.position)}</div></td>
             <td data-label="城市">${escapeHtml(record.city)}</td>
             <td data-label="投递日期">${escapeHtml(formatDate(record.applicationDate))}</td>
-            <td data-label="当前阶段"><span class="badge" data-stage="${escapeHtml(record.stage)}">${escapeHtml(record.stage)}</span>${syncBadge}</td>
+            <td data-label="当前阶段"><span class="badge" data-stage="${escapeHtml(record.stage)}">${escapeHtml(record.stage)}</span>${syncBadge}${exampleBadge}</td>
             <td class="schedule" data-label="最近安排"><div class="schedule-time ${overdue ? 'overdue' : ''}">${escapeHtml(formatDateTime(record.scheduleAt))}${overdue ? ' · 已到期' : ''}</div><div class="schedule-text">${escapeHtml(record.recentSchedule || '—')}</div></td>
             <td data-label="下一步行动"><div class="next-action">${escapeHtml(record.nextAction || '—')}</div></td>
             <td data-label="操作"><div class="row-actions">
@@ -1800,7 +1967,7 @@
       function renderUpcoming() {
         const now = new Date();
         const upcoming = records
-          .filter(r => { const d = parseLocal(r.scheduleAt); return d && d >= now && !['Offer', '已结束'].includes(r.stage); })
+          .filter(r => { const d = parseLocal(r.scheduleAt); return d && d >= now && !isTerminalStage(r.stage); })
           .sort((a, b) => parseLocal(a.scheduleAt) - parseLocal(b.scheduleAt))
           .slice(0, 4);
         if (!upcoming.length) {
@@ -1817,7 +1984,7 @@
       }
 
       function populateSelects() {
-        els.filter.insertAdjacentHTML('beforeend', STAGES.map(s => `<option value="${s}">${s}</option>`).join(''));
+        els.stageFilter.insertAdjacentHTML('beforeend', STAGES.map(s => `<option value="${s}">${s}</option>`).join(''));
         $('#stage').innerHTML = STAGES.map(s => `<option value="${s}">${s}</option>`).join('');
       }
 
@@ -1835,39 +2002,32 @@
         requestAnimationFrame(() => $('#company').focus());
       }
 
-      function openCaptureDialog() {
-        $('#captureForm').reset();
-        const status = $('#captureStatus');
+      // 两个识别入口共用"探测插件在线"逻辑：发一次握手，超时未收到回执则报错
+      function pingCaptureBridge(status, timeoutMs, timeoutMessage) {
         status.className = 'capture-status';
         status.textContent = '正在检查一键收录插件…';
         bridgeReady = false;
-        window.postMessage({ source: 'AUTUMN_TRACKER', type: 'CAPTURE_PING', url: location.href.split('?')[0].split('#')[0] }, '*');
+        window.postMessage({ source: 'AUTUMN_TRACKER', type: 'CAPTURE_PING', url: location.href.split('?')[0].split('#')[0] }, location.origin);
         clearTimeout(bridgeCheckTimer);
         bridgeCheckTimer = setTimeout(() => {
           if (!bridgeReady) {
             status.className = 'capture-status error';
-            status.textContent = '未连接到一键收录插件。请先安装或更新插件，并开启“允许访问文件网址”。';
+            status.textContent = timeoutMessage;
           }
-        }, 900);
+        }, timeoutMs);
+      }
+
+      function openCaptureDialog() {
+        $('#captureForm').reset();
+        pingCaptureBridge($('#captureStatus'), 900, '未连接到一键收录插件。请先安装或更新插件，并开启“允许访问文件网址”。');
         $('#captureDialog').showModal();
         requestAnimationFrame(() => $('#captureUrlInput').focus());
       }
 
       function openJobSyncDialog() {
-        const status = $('#jobSyncStatus');
-        status.className = 'capture-status';
-        status.textContent = '正在检查一键收录插件…';
         $('#jobPasteInput').value = '';
         $('#startJobSyncBtn').disabled = false;
-        bridgeReady = false;
-        window.postMessage({ source: 'AUTUMN_TRACKER', type: 'CAPTURE_PING', url: location.href.split('?')[0].split('#')[0] }, '*');
-        clearTimeout(bridgeCheckTimer);
-        bridgeCheckTimer = setTimeout(() => {
-          if (!bridgeReady) {
-            status.className = 'capture-status error';
-            status.textContent = '未连接到新版一键收录插件。请更新插件并刷新本页面，也可以展开下方入口粘贴表格内容。';
-          }
-        }, 1000);
+        pingCaptureBridge($('#jobSyncStatus'), 1000, '未连接到新版一键收录插件。请更新插件并刷新本页面，也可以展开下方入口粘贴表格内容。');
         $('#jobSyncDialog').showModal();
       }
 
@@ -1887,7 +2047,7 @@
         $('#startJobSyncBtn').disabled = true;
         status.className = 'capture-status';
         status.textContent = '正在读取腾讯招聘文档，岗位较多时可能需要半分钟…';
-        window.postMessage({ source: 'AUTUMN_TRACKER', type: 'SYNC_QQ_JOBS', url: QQ_JOB_DOC_URL }, '*');
+        window.postMessage({ source: 'AUTUMN_TRACKER', type: 'SYNC_QQ_JOBS', url: QQ_JOB_DOC_URL }, location.origin);
         clearTimeout(jobSyncTimer);
         jobSyncTimer = setTimeout(() => {
           $('#startJobSyncBtn').disabled = false;
@@ -1932,13 +2092,26 @@
         $('#startCaptureBtn').disabled = true;
         status.className = 'capture-status';
         status.textContent = '正在打开详情页并识别，通常需要几秒钟…';
-        window.postMessage({ source: 'AUTUMN_TRACKER', type: 'CAPTURE_JOB_URL', url }, '*');
+        window.postMessage({ source: 'AUTUMN_TRACKER', type: 'CAPTURE_JOB_URL', url }, location.origin);
         clearTimeout(captureTimer);
         captureTimer = setTimeout(() => {
           $('#startCaptureBtn').disabled = false;
           status.className = 'capture-status error';
           status.textContent = '识别等待超时。请确认网址可以正常打开后重试。';
         }, 25000);
+      }
+
+      // 插件识别结果（postMessage 与 URL 参数两条通道共用）转成待确认的表单种子
+      function seedRecordFromCapture(captured) {
+        return normalizeRecord({
+          company: captured?.company,
+          position: captured?.position,
+          city: captured?.city,
+          applicationDate: captured?.applicationDate || '',
+          stage: STAGES.includes(captured?.stage) ? captured.stage : '已投递',
+          applicationUrl: captured?.applicationUrl,
+          nextAction: '关注消息并及时跟进投递进度'
+        });
       }
 
       function handleCaptureMessage(event) {
@@ -1983,16 +2156,7 @@
           clearTimeout(captureTimer);
           $('#startCaptureBtn').disabled = false;
           closeCaptureDialog();
-          const captured = event.data.data || {};
-          const seed = normalizeRecord({
-            company: captured.company,
-            position: captured.position,
-            city: captured.city,
-            applicationDate: captured.applicationDate || '',
-            stage: STAGES.includes(captured.stage) ? captured.stage : '已投递',
-            applicationUrl: captured.applicationUrl,
-            nextAction: '关注消息并及时跟进投递进度'
-          });
+          const seed = seedRecordFromCapture(event.data.data || {});
           openDialog(null, seed);
           showToast('识别完成，请检查信息后保存');
           return;
@@ -2217,8 +2381,7 @@
         position = String(position)
           .split(/(?:撤\s*回\s*投\s*递|更\s*新\s*简\s*历|重\s*新\s*投\s*递|取\s*消\s*申\s*请|官\s*网\s*主\s*投|初\s*筛\s*中|筛\s*选\s*中|已\s*投\s*递|工作地点|城市|职位类别|岗位类别|申请时间|投递时间|发布日期)/)[0];
         if (!city) {
-          const knownCities = ['北京', '上海', '广州', '深圳', '杭州', '南京', '苏州', '成都', '重庆', '武汉', '西安', '天津', '长沙', '厦门', '合肥', '青岛', '宁波', '郑州', '珠海', '佛山', '东莞', '无锡', '济南', '福州', '昆明', '南昌', '大连', '沈阳', '长春', '哈尔滨', '全国', '远程'];
-          city = knownCities.find(name => compactText.includes(name)) || '';
+          city = CITY_WHITELIST.find(name => compactText.includes(name)) || '';
         }
         return normalizeRecord({
           company: cleanOcrCandidate(company, 60),
@@ -2394,6 +2557,12 @@
         toastTimer = setTimeout(() => els.toast.classList.remove('show'), 2400);
       }
 
+      // 统一"点击对话框背景关闭"绑定，收拢同一模式的重复代码
+      function closeOnBackdrop(dialogId, onClose) {
+        const dialog = $(dialogId);
+        dialog.addEventListener('click', event => { if (event.target === dialog) onClose(); });
+      }
+
       let deferredInstallPrompt = null;
 
       function isStandaloneApp() {
@@ -2442,15 +2611,7 @@
           const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
           const bytes = Uint8Array.from(atob(padded), char => char.charCodeAt(0));
           const captured = JSON.parse(new TextDecoder().decode(bytes));
-          const seed = normalizeRecord({
-            company: captured.company,
-            position: captured.position,
-            city: captured.city,
-            applicationDate: captured.applicationDate || '',
-            stage: STAGES.includes(captured.stage) ? captured.stage : '已投递',
-            applicationUrl: captured.applicationUrl,
-            nextAction: '关注消息并及时跟进投递进度'
-          });
+          const seed = seedRecordFromCapture(captured);
           try { history.replaceState(null, '', location.href.split('?')[0].split('#')[0]); } catch (_) {}
           openDialog(null, seed);
           showToast('已从岗位网页识别，请确认后保存');
@@ -2492,20 +2653,20 @@
       $('#closeDialog').addEventListener('click', closeDialog);
       $('#cancelDialog').addEventListener('click', closeDialog);
       els.form.addEventListener('submit', submitForm);
-      els.body.addEventListener('click', handleTableAction);
+      els.tbody.addEventListener('click', handleTableAction);
       els.search.addEventListener('input', renderTable);
-      els.filter.addEventListener('change', renderTable);
+      els.stageFilter.addEventListener('change', renderTable);
       els.sort.addEventListener('change', renderTable);
-      els.dialog.addEventListener('click', event => { if (event.target === els.dialog) closeDialog(); });
+      closeOnBackdrop('#recordDialog', closeDialog);
       $('#closeCaptureDialog').addEventListener('click', closeCaptureDialog);
       $('#cancelCaptureDialog').addEventListener('click', closeCaptureDialog);
       $('#captureForm').addEventListener('submit', requestUrlCapture);
-      $('#captureDialog').addEventListener('click', event => { if (event.target === $('#captureDialog')) closeCaptureDialog(); });
+      closeOnBackdrop('#captureDialog', closeCaptureDialog);
       $('#closeJobSyncDialog').addEventListener('click', closeJobSyncDialog);
       $('#cancelJobSyncDialog').addEventListener('click', closeJobSyncDialog);
       $('#startJobSyncBtn').addEventListener('click', requestJobSync);
       $('#importPastedJobsBtn').addEventListener('click', importPastedJobs);
-      $('#jobSyncDialog').addEventListener('click', event => { if (event.target === $('#jobSyncDialog')) closeJobSyncDialog(); });
+      closeOnBackdrop('#jobSyncDialog', closeJobSyncDialog);
       $('#closeScreenshotDialog').addEventListener('click', closeScreenshotDialog);
       $('#cancelScreenshotDialog').addEventListener('click', closeScreenshotDialog);
       $('#startOcrBtn').addEventListener('click', recognizeScreenshot);
@@ -2532,13 +2693,19 @@
         $('#ocrDropzone').addEventListener(type, event => { event.preventDefault(); $('#ocrDropzone').classList.remove('is-dragging'); });
       }
       $('#ocrDropzone').addEventListener('drop', event => { if (!ocrRunning) selectScreenshots(event.dataTransfer?.files); });
-      $('#screenshotDialog').addEventListener('click', event => { if (event.target === $('#screenshotDialog')) closeScreenshotDialog(); });
+      closeOnBackdrop('#screenshotDialog', closeScreenshotDialog);
       $('#screenshotDialog').addEventListener('cancel', event => { event.preventDefault(); closeScreenshotDialog(); });
+      // 双标签页守卫：另一标签页改了台账时提示刷新，避免整表覆盖互相丢数据
+      window.addEventListener('storage', event => {
+        if (event.key !== STORAGE_KEY || event.newValue === null || event.newValue === JSON.stringify(records)) return;
+        if (confirm('检测到这个页面在另一个标签页被修改了。\n\n刷新后将加载最新数据（本页未保存的输入会丢失）。要现在刷新吗？')) location.reload();
+        else showToast('继续使用本页数据；再次保存时会覆盖另一标签页的改动');
+      });
       window.addEventListener('message', handleCaptureMessage);
-      window.postMessage({ source: 'AUTUMN_TRACKER', type: 'CAPTURE_REGISTER_TRACKER', url: location.href.split('?')[0].split('#')[0] }, '*');
+      window.postMessage({ source: 'AUTUMN_TRACKER', type: 'CAPTURE_REGISTER_TRACKER', url: location.href.split('?')[0].split('#')[0] }, location.origin);
       $('#closeSafetyDialog').addEventListener('click', () => $('#safetyDialog').close());
       $('#doneSafetyDialog').addEventListener('click', () => $('#safetyDialog').close());
-      $('#safetyDialog').addEventListener('click', event => { if (event.target === $('#safetyDialog')) $('#safetyDialog').close(); });
+      closeOnBackdrop('#safetyDialog', () => $('#safetyDialog').close());
       $('#setupBackupBtn').addEventListener('click', setupAutomaticBackup);
       $('#backupNowBtn').addEventListener('click', backupNow);
       $('#importBtn').addEventListener('click', () => $('#importFileInput').click());
@@ -2551,6 +2718,7 @@
       $('#syncRegrantBtn').addEventListener('click', regrantSyncFile);
       $('#syncRegrantBtn2').addEventListener('click', regrantSyncFile);
       $('#syncExportBtn').addEventListener('click', exportSyncPayload);
+      $('#syncQueryBtn').addEventListener('click', queryViaConsole);
       $('#syncSeedAllBtn').addEventListener('click', bulkCreatePending);
       $('#syncSeedOneBtn').addEventListener('click', () => { $('#syncSeedBox').hidden = true; });
       $('#syncBatchNewBtn').addEventListener('click', bulkCreatePending);
@@ -2562,10 +2730,10 @@
       });
       $('#closeSyncDialog').addEventListener('click', () => $('#syncDialog').close());
       $('#doneSyncDialog').addEventListener('click', () => $('#syncDialog').close());
-      $('#syncDialog').addEventListener('click', event => { if (event.target === $('#syncDialog')) $('#syncDialog').close(); });
+      closeOnBackdrop('#syncDialog', () => $('#syncDialog').close());
       $('#closeInstallDialog').addEventListener('click', () => $('#installDialog').close());
       $('#doneInstallDialog').addEventListener('click', () => $('#installDialog').close());
-      $('#installDialog').addEventListener('click', event => { if (event.target === $('#installDialog')) $('#installDialog').close(); });
+      closeOnBackdrop('#installDialog', () => $('#installDialog').close());
       initializeDataSafety();
       initializeMobileApp();
       consumeQuickCapture();
