@@ -294,13 +294,14 @@ async function syncTencentJobsApi(url) {
   for (const rowId of collected.keys()) {
     const cellsMap = (collected.get(rowId) && collected.get(rowId)['1']) || {};
     const values = fieldIds.map(fieldId => ({ name: fields[fieldId], value: sheetCellToValue(cellsMap[fieldId]) }));
-    const texts = values.map(item => item.value.text).filter(Boolean);
+    // 注意：cells 必须与表头等长（空单元格保留 '' 占位），否则台账按表头下标取列会错位
+    const texts = values.map(item => item.value.text);
     const isNoiseUrl = u => /qlogo\.cn|thirdwx\./i.test(u);
     const primaryLinkField = values.find(item => /链接|网申|报名/.test(item.name) && item.value.url && !isNoiseUrl(item.value.url));
     const otherLinks = values.map(item => item.value.url).filter(u => u && /^https?:\/\//i.test(u) && !isNoiseUrl(u));
     const links = [...new Set([primaryLinkField && primaryLinkField.value.url, ...otherLinks].filter(Boolean))];
-    if (!texts.length && !links.length) continue;
-    rows.push({ cells: texts, text: texts.join(' '), links });
+    if (!texts.some(Boolean) && !links.length) continue;
+    rows.push({ cells: texts, text: texts.filter(Boolean).join(' '), links });
   }
   if (!rows.length) throw new Error('没有读到岗位，请确认已登录且有权限查看这份文档。');
   // 台账解析器靠表头行识别列（公司名称/招聘岗位/内推链接…），把列名作为首行一起返回
