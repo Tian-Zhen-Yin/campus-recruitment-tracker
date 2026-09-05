@@ -862,11 +862,13 @@
         const rawRows = Array.isArray(input) ? input : String(input || '').split(/\r?\n/).map(line => ({ cells: splitJobLine(line), text: line, links: [] }));
         const rows = rawRows.map(row => {
           if (Array.isArray(row)) return { cells: row.map(cleanJobCell).filter(Boolean), text: row.join(' '), links: [] };
-          return {
-            cells: (Array.isArray(row?.cells) ? row.cells : splitJobLine(row?.text || '')).map(cleanJobCell).filter(Boolean),
-            text: cleanJobCell(row?.text || ''),
-            links: (Array.isArray(row?.links) ? row.links : []).filter(url => /^https?:\/\//i.test(String(url)))
-          };
+        return {
+          // 注意：cells 必须保留空字符串占位（不可 filter 掉），否则按表头下标取列会错位；
+          // 空单元格在后续 useful 候选筛选中会被 length>=2 条件自然排除
+          cells: (Array.isArray(row?.cells) ? row.cells : splitJobLine(row?.text || '')).map(cleanJobCell),
+          text: cleanJobCell(row?.text || ''),
+          links: (Array.isArray(row?.links) ? row.links : []).filter(url => /^https?:\/\//i.test(String(url)))
+        };
         }).filter(row => row.cells.length >= 2 || row.links.length);
         if (!rows.length) return [];
 
