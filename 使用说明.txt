@@ -1,7 +1,7 @@
 秋招投递管理器｜快速使用说明
 
 在线版：
-https://songxue0614-lgtm.github.io/autumn-recruitment-tracker/
+https://tian-zhen-yin.github.io/autumn-recruitment-tracker/
 
 1. 电脑可直接用 Chrome、Edge 或 Safari 打开在线版。
 2. iPhone 请用 Safari 打开，点击“分享”→“添加到主屏幕”。
@@ -20,3 +20,4 @@ docs/数据保存与迁移.md
 
 版本：网页 v3.0.0｜插件 v1.4.4
 数据存储标识：autumnRecruitmentTracker.records.v1
+11. 「截图识别」在离线版（双击本地文件打开）下不可用——浏览器禁止本地文件运行识别引擎。需要截图识别时请使用在线版地址。
