@@ -35,6 +35,8 @@
     }
 
     * { box-sizing: border-box; }
+    /* 作者样式（如 .btn 的 inline-flex）会盖过浏览器对 [hidden] 的默认隐藏——这里强制兜底，防幽灵按钮 */
+    [hidden] { display: none !important; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
