@@ -415,6 +415,18 @@
     .bind-entry.is-selected { border-color: var(--primary); background: var(--primary-soft); }
     .bind-entry .sub { color: var(--muted); font-size: 11.5px; text-align: right; }
     .bind-nobind-row { display: flex; gap: 7px; align-items: center; margin-top: 9px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+    /* ===== 拍板弹窗 ===== */
+    .adj-fact { margin: 10px 0 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); font-size: 14px; line-height: 1.75; }
+    .adj-fact b { font-weight: 760; }
+    .adj-question { margin: 14px 0 0; font-size: 15.5px; font-weight: 730; }
+    .adj-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .adj-actions .btn { flex: 1; min-height: 46px; }
+    .adj-body-title { font-size: 15px; font-weight: 780; margin-bottom: 2px; }
+    .adj-meta { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+    /* ===== 自动跟进新区 ===== */
+    .sync-freshness { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+    button.sync-stat { cursor: pointer; text-align: left; font: inherit; }
+    button.sync-stat:hover { border-color: #cfd6e7; box-shadow: 0 5px 14px rgba(33,45,75,.08); }
     @media (max-width: 1100px) { .todo-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
     @media (max-width: 560px) { .todo-grid { grid-template-columns: 1fr; } }
   </style>
@@ -456,10 +468,10 @@
     <section class="panel" id="todoStrip" aria-label="今天要做的" style="margin-bottom:20px">
         <div class="panel-head"><div><h2 class="panel-title">今天要做的</h2><div class="panel-caption">处理完这些，就可以安心投递了</div></div></div>
         <div class="panel-body todo-grid">
-          <button class="todo-card" id="todoConfirm" type="button"><b id="todoConfirmN">0</b><span>条官网状态待确认</span><i>去裁决 →</i></button>
+          <button class="todo-card" id="todoConfirm" type="button"><b id="todoConfirmN">0</b><span>条进展需要你拍板</span><i>去处理 →</i></button>
           <button class="todo-card" id="todoUpcoming" type="button"><b id="todoUpcomingN">0</b><span>七天内笔试 / 面试安排</span><i>去准备 →</i></button>
           <button class="todo-card" id="todoOnboard" type="button"><b id="todoOnboardN">0</b><span>家已投公司还没接入官网</span><i>去接入 →</i></button>
-          <button class="todo-card" id="todoBind" type="button"><b id="todoBindN">0</b><span>条记录可绑定官网</span><i>去绑定 →</i></button>
+          <button class="todo-card" id="todoBind" type="button"><b id="todoBindN">0</b><span>条记录可以自动更新</span><i>去连接 →</i></button>
         </div>
       </section>
       <section class="stats" id="overview" aria-label="投递概览">
@@ -530,79 +542,45 @@
       </aside>
     </div>
         <section class="panel" id="autofollow" aria-labelledby="autofollowTitle" style="margin-bottom:20px">
-        <div class="panel-head"><div><h2 class="panel-title" id="autofollowTitle">自动跟进</h2><div class="panel-caption">接入官网后，投递状态自动更新到台账——待确认事项会标在左侧导航上</div></div></div>
+        <div class="panel-head">
+          <div><h2 class="panel-title" id="autofollowTitle">自动跟进</h2><div class="panel-caption">接入过的公司，投递状态自动更新——拿不准的进展会请你拍板</div></div>
+          <div class="job-pool-actions">
+            <button class="btn btn-primary" id="syncRefreshBtn" type="button"><span class="icon">↻</span>现在刷新</button>
+          </div>
+        </div>
         <div class="panel-body" style="padding-top:16px">
-    
     <div class="form-body">
 
-      <section id="syncSetup">
-        <p class="capture-note">把聚合工具从招聘官网抓到的<b>真实投递状态</b>自动更新到台账。状态包只是这台电脑上的一个 JSON 文件：全程本地、只在页面打开时读取、每次同步前自动存快照，可随时在「数据安全」回滚。</p>
-        <div class="modal-actions" style="justify-content:center; margin:16px 0 10px;">
-          <button class="btn btn-primary" id="chooseSyncFileBtn" type="button" style="min-width:200px">选择状态包文件</button>
-        </div>
-        <p class="capture-note">没有文件？也可以在「数据安全 → 导入备份文件」手动导入同一个 JSON，Safari 与手机请用此方式。自动感知需要 Chrome / Edge。</p>
-        <div class="capture-status" id="syncSetupStatus" role="status" aria-live="polite" hidden></div>
+      <section id="syncConnecting" hidden>
+        <p class="capture-note" style="margin:0">正在连接…</p>
       </section>
 
-      <section id="syncConnected" hidden>
-        <div class="sync-file-row" id="syncConsoleRow">
-          <div>
-            <div class="sync-file-name">🖥 投递控制台（直连）</div>
-            <div class="sync-file-sub" id="syncConsoleSub"><span class="sync-dot ok"></span>已连接</div>
-          </div>
-          <button class="btn btn-primary btn-small" id="syncQueryBtn" type="button">一键查状态</button>
-        </div>
-        <div class="capture-status" id="syncQueryStatus" role="status" aria-live="polite" hidden></div>
-        <div class="sync-sites" id="syncSitesList" hidden></div>
-
-        <div class="sync-file-row">
-          <div>
-            <div class="sync-file-name" id="syncFileName">tracker-sync.json</div>
-            <div class="sync-file-sub" id="syncFileSub"><span class="sync-dot ok"></span>已连接</div>
-          </div>
-          <span style="font-size:12px;color:var(--muted);" id="syncPauseState"></span>
-        </div>
-
+      <section id="syncDirect" hidden>
+        <div class="sync-freshness" id="syncFreshness">·</div>
         <div class="sync-stats">
-          <div class="sync-stat"><b id="syncAppliedCount">0</b><span>累计自动应用</span></div>
-          <div class="sync-stat is-hot" id="syncPendingStat"><b id="syncPendingCount">0</b><span>待你确认</span></div>
-          <div class="sync-stat"><b id="syncCheckCount">0</b><span>今日检查</span></div>
+          <div class="sync-stat"><b id="statLastUpdate">—</b><span>上次更新</span></div>
+          <div class="sync-stat"><b id="statCompanies">0</b><span>已接入公司</span></div>
+          <button class="sync-stat" id="statPending" type="button" title="处理这些进展"><b id="statPendingN">0</b><span>条进展需要拍板</span></button>
         </div>
-
-        <div class="sync-toolbar">
-          <button class="btn btn-primary" id="syncCheckBtn" type="button">立即检查</button>
-          <button class="btn" id="syncPauseBtn" type="button">暂停自动</button>
-          <button class="btn" id="syncRegrantBtn" type="button" hidden>重新授权</button>
-          <button class="btn" id="syncExportBtn" type="button" title="把最近读取的状态包另存一份">导出当前状态包</button>
-          <button class="btn" id="syncChangeBtn" type="button">更换文件</button>
-        </div>
-
-        <div class="sync-box warn" id="syncAuthBox" hidden>浏览器出于安全考虑收回了文件访问权限，重新授权后会立刻补一次检查。<div style="margin-top:8px"><button class="btn btn-small" id="syncRegrantBtn2" type="button">重新授权</button></div></div>
-        <div class="sync-box err" id="syncErrorBox" hidden></div>
+        <div class="sync-sites" id="syncSitesList"></div>
+        <div class="capture-status" id="syncQueryStatus" role="status" aria-live="polite" hidden></div>
 
         <div class="sync-seed" id="syncSeedBox" hidden>
-          <h3>✓ 已读取官方状态，台账还是空的</h3>
-          <p>要把官方状态全部建为投递记录吗？阶段按终态规则自动判定，之后每次同步自动更新。</p>
+          <h3>官网发现你的投递记录，台账还是空的</h3>
+          <p>要把这些全部记入台账吗？之后它们的状态会自动更新。</p>
           <div class="sync-chips" id="syncSeedChips"></div>
           <div style="display:flex;gap:9px;flex-wrap:wrap;">
-            <button class="btn btn-primary btn-small" id="syncSeedAllBtn" type="button">全部建为记录</button>
-            <button class="btn btn-small" id="syncSeedOneBtn" type="button">一条条确认</button>
+            <button class="btn btn-primary btn-small" id="syncSeedAllBtn" type="button">全部记入</button>
+            <button class="btn btn-small" id="syncSeedOneBtn" type="button">一条条来</button>
           </div>
         </div>
+      </section>
 
-        <div id="syncQueueArea" hidden>
-          <div class="sync-queue-head" id="syncQueueTitle"></div>
-          <p class="sync-batch-note">新建类支持批量；终态覆盖与复活类会改写已有记录，请逐条裁决。</p>
-          <div id="syncQueueList"></div>
-          <button class="btn btn-soft btn-small" id="syncBatchNewBtn" type="button" hidden>全部新建</button>
-        </div>
-        <div class="sync-allclear" id="syncAllClear" hidden>✓ 待确认已清空，台账与官方状态一致</div>
-
-        <div class="sync-hint"><b>同步说明</b><br>自动检查：页面打开期间每 60 秒一次<br>定时刷新：由电脑上的聚合工具负责（建议工作日 9:30 / 14:00 / 20:00）<br>任何同步效果可在「数据安全 → 恢复上一个快照」一键回滚</div>
+      <section id="syncFallback" hidden>
+        <p class="capture-note" style="margin:0">自动更新由这台电脑上的「控制台」负责，现在没有连上。<br>请用 Chrome 或 Edge 打开本页面；在手机或其它浏览器上使用的方法，见「设置 → 使用指南」。</p>
       </section>
 
     </div>
-    
   </div>
         </section>
         <section class="panel" id="settings" aria-labelledby="settingsTitle" style="margin-bottom:20px">
@@ -612,9 +590,9 @@
               <button class="btn" id="sideSafetyBtn2" type="button"><span class="icon">◇</span>数据安全与备份</button>
               <button class="btn" id="sideExportBtn" type="button"><span class="icon">⇩</span>导出数据</button>
               <a class="btn" id="sideGuideLink" href="/guide" target="_blank"><span class="icon">□</span>使用指南</a>
-              <a class="btn" id="sideConsoleLink" href="/console/" hidden><span class="icon">🎛</span>投递控制台（引擎面板）</a>
+              <a class="btn" id="sideConsoleLink" href="/console/" hidden><span class="icon">🎛</span>投递控制台</a>
             </div>
-            <p class="sync-hint" style="margin-top:12px">数据保存在本机浏览器，换设备请先「导出数据」。官网登录、抓包等引擎操作在「投递控制台」完成。</p>
+            <p class="sync-hint" style="margin-top:12px">数据保存在本机浏览器，换设备请先「导出数据」。进阶操作（如重新登录某家官网）在「投递控制台」完成。</p>
           </div>
         </section>
     </main>
@@ -732,6 +710,15 @@
     <div class="modal-actions"><button class="btn btn-primary" id="doneInstallDialog" type="button">知道了</button></div>
   </dialog>
 
+  <dialog id="adjudicateDialog">
+    <div class="modal-head"><h2>需要你拍板</h2><button class="close-btn" id="closeAdjudicate" type="button" aria-label="关闭">×</button></div>
+    <div class="form-body" id="adjBody"></div>
+    <div class="modal-actions" style="justify-content:space-between; align-items:center">
+      <button class="text-button" id="adjIgnore" type="button">这条先不管</button>
+      <span class="hint" id="adjProgress" style="margin:0"></span>
+    </div>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="./ocr/tesseract.min.js"></script>
@@ -799,11 +786,8 @@
       let ocrCandidates = [];
       let ocrWorker = null;
       let ocrRunning = false;
-      let syncFileHandle = null;
       let syncState = loadSyncState();
       let syncTimer = null;
-      let syncLastModified = 0;
-      let syncBusy = false;
       let lastSyncPayload = null;
       let consoleState = null;      // 控制台 /api/state 的最近一次返回
       let consoleReachable = null;  // null=未探测 true/false
@@ -1174,7 +1158,6 @@
             await saveBrowserSnapshot(createEnvelope(records));
           }
           backupFileHandle = await dbGet('handles', 'backupFile') || null;
-          syncFileHandle = await dbGet('handles', 'syncFile') || null;
           if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
         } catch (error) {
           console.warn('数据安全层初始化失败', error);
@@ -1270,13 +1253,13 @@
         try {
           const parsed = JSON.parse(await file.text());
           if (parsed && parsed.kind === SYNC_KIND) {
-            if (!confirm(`这是官方状态同步包（${(Array.isArray(parsed.updates) ? parsed.updates : []).length} 条）。\n将合并到现有台账，不会整体替换。继续吗？`)) return;
+            if (!confirm(`这是官网进展数据（${(Array.isArray(parsed.updates) ? parsed.updates : []).length} 条）。\n将合并进现有台账，不会整体替换。继续吗？`)) return;
             const result = ingestPayload(parsed, 'manual');
-            if (result?.error === 'version') return alert('状态包版本过新，请先更新管理器页面。');
-            if (result?.error === 'kind') return alert('无法识别这个状态包，请确认文件来源。');
-            if (result?.stale) return showToast('状态包无新数据');
-            showToast(result?.auto || result?.pending ? `已应用 ${result.auto} 条，${result.pending} 条待你确认` : '无新变化');
-            openSyncDialog();
+            if (result?.error === 'version') return alert('数据版本过新，请先更新页面。');
+            if (result?.error === 'kind') return alert('无法识别这个文件，请确认来源。');
+            if (result?.stale) return showToast('没有新的进展');
+            showToast(result?.auto || result?.pending ? `已应用 ${result.auto} 条，${result.pending} 条需要拍板` : '没有新变化');
+            openAdjudicate();
             return;
           }
           const incoming = Array.isArray(parsed) ? parsed : parsed.records;
@@ -1661,118 +1644,22 @@
       function bulkCreatePending() {
         const news = syncState.pending.filter(item => item.reason === 'new');
         if (!news.length) return;
-        if (records.length && !confirm(`将按官方状态新建 ${news.length} 条投递记录，快照会先自动保存。继续吗？`)) return;
+        if (records.length && !confirm(`将把官网发现的 ${news.length} 条投递记入台账。继续吗？`)) return;
         news.forEach(item => records.unshift(recordFromUpdate(item)));
         syncState.pending = syncState.pending.filter(item => item.reason !== 'new');
         syncState.stats.applied += news.length;
-        saveRecords(`已按官方状态新建 ${news.length} 条记录，快照已保存`);
+        saveRecords(`已记入 ${news.length} 条，快照已保存`);
         saveSyncState();
         render();
       }
 
-      async function connectSyncFile() {
-        if (!window.showOpenFilePicker) {
-          alert('当前浏览器不支持自动同步文件。请使用 Chrome / Edge，或在「数据安全 → 导入备份文件」手动导入状态包。');
-          return;
-        }
-        try {
-          const [handle] = await window.showOpenFilePicker({
-            types: [{ description: '官方状态同步包', accept: { 'application/json': ['.json'] } }]
-          });
-          if (backupFileHandle && handle.isSameEntry && await handle.isSameEntry(backupFileHandle).catch(() => false)) {
-            alert('这是台账备份文件。请选择聚合工具生成的 tracker-sync.json。');
-            return;
-          }
-          syncFileHandle = handle;
-          syncLastModified = 0;
-          await dbPut('handles', handle, 'syncFile');
-          saveSyncState();
-          await checkSyncFile(true);
-        } catch (error) {
-          if (error?.name !== 'AbortError') alert('未能选择状态包文件，请重试。');
-        }
-        renderSyncPanel();
-      }
-
-      async function regrantSyncFile() {
-        if (!syncFileHandle) return;
-        try {
-          if ((await syncFileHandle.requestPermission({ mode: 'readwrite' })) === 'granted') {
-            syncState.needsAuth = false;
-            saveSyncState();
-            await checkSyncFile(true);
-          } else {
-            showToast('没有获得文件授权，可稍后在状态同步里重试');
-          }
-        } catch (_) { showToast('授权未完成，可稍后重试'); }
-        renderSyncPanel();
-      }
-
-      async function checkSyncFile(force = false) {
-        if (!syncFileHandle || syncBusy) return;
-        syncBusy = true;
-        try {
-          if ((await syncFileHandle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
-            syncState.needsAuth = true;
-            saveSyncState();
-            renderSyncPanel();
-            return;
-          }
-          syncState.needsAuth = false;
-          const file = await syncFileHandle.getFile();
-          if (!force && file.lastModified === syncLastModified) return;
-          syncLastModified = file.lastModified;
-          syncState.checks = bumpDailyChecks();
-          let payload = null;
-          try { payload = JSON.parse(await file.text()); } catch (_) { payload = null; }
-          if (!payload) {
-            syncState.lastError = '文件不是有效的状态包（JSON 解析失败）。';
-            saveSyncState();
-            return;
-          }
-          syncState.lastError = '';
-          const result = ingestPayload(payload, 'file');
-          if (result?.error === 'kind') syncState.lastError = '这不是状态包。若是台账备份，请到「数据安全」导入。';
-          if (result?.error === 'version') syncState.lastError = '状态包版本过新，请先更新管理器页面。';
-          if (result?.ok && !result.stale) {
-            if (result.auto && result.pending) showToast(`已自动应用 ${result.auto} 条官方状态，${result.pending} 条待你确认`);
-            else if (result.auto) showToast(`已自动应用 ${result.auto} 条官方状态`);
-          }
-        } catch (error) {
-          syncState.lastError = '同步文件无法读取，可能被移动或删除。';
-        } finally {
-          syncBusy = false;
-          saveSyncState();
-          renderSyncPanel();
-        }
-      }
-
-      function bumpDailyChecks() {
-        const today = localDateInput(new Date());
-        return syncState.checkDay === today ? (Number(syncState.checks) || 0) + 1 : 1;
-      }
-
       function startSyncPolling() {
         clearInterval(syncTimer);
-        if (syncFileHandle) checkSyncFile(false);
-        else if (consoleReachable) pullTrackerSync();
+        if (consoleReachable) pullTrackerSyncSoon();
         syncTimer = setInterval(() => {
-          if (syncState.paused || document.hidden) return;
-          if (syncFileHandle) checkSyncFile(false);
-          else if (consoleReachable) pullTrackerSync();
+          if (document.hidden) return;
+          if (consoleReachable) pullTrackerSync();
         }, SYNC_POLL_MS);
-      }
-
-      function toggleSyncPause() {
-        syncState.paused = !syncState.paused;
-        saveSyncState();
-        renderSyncPanel();
-        showToast(syncState.paused ? '自动检查已暂停，可用「立即检查」手动刷新' : '自动检查已恢复');
-      }
-
-      function exportSyncPayload() {
-        if (!lastSyncPayload) return showToast('还没有读取过状态包');
-        downloadPayload(lastSyncPayload, 'tracker-sync.json');
       }
 
       function siteChipCounts(pending) {
@@ -1782,15 +1669,6 @@
           counts[name] = (counts[name] || 0) + 1;
         });
         return Object.entries(counts);
-      }
-
-      function sceneMeta(reason) {
-        return {
-          override: { cls: 't-override', tag: '终态覆盖（手动编辑保护）' },
-          revive: { cls: 't-revive', tag: '终态复活' },
-          fuzzy: { cls: 't-fuzzy', tag: '疑似匹配' },
-          new: { cls: 't-new', tag: '新记录' }
-        }[reason] || { cls: 't-fuzzy', tag: '待确认' };
       }
 
       /* ==================== 直连控制台模式 ==================== */
@@ -1821,8 +1699,8 @@
         }
         renderSyncPanel();
         // 探测可达立即补一次拉取：startSyncPolling 跑在探测完成前（consoleReachable 还是 null），
-        // 不补这一下，直连模式要等满 60 秒才出现第一次状态
-        if (consoleReachable && !syncFileHandle && !syncState.paused) pullTrackerSyncSoon();
+        // 不补这一下，页面打开要等满 60 秒才出现第一次进展
+        if (consoleReachable) pullTrackerSyncSoon();
         return consoleReachable;
       }
 
@@ -1847,7 +1725,7 @@
       async function queryViaConsole() {
         if (consoleQueryRunning) return;
         const base = getConsoleBase();
-        const btn = $('#syncQueryBtn');
+        const btn = $('#syncRefreshBtn');
         const statusBox = $('#syncQueryStatus');
         consoleQueryRunning = true;
         btn.disabled = true;
@@ -1890,47 +1768,36 @@
       }
 
       
-      // 公司驱动视图：台账里投递了哪家公司，才展示哪家官网的接入状态
+      // 公司三态卡：未接入（灰）/ 待完成登录（黄）/ 已连接（绿）。只展示台账里投递过的公司
       function renderSitesHealth() {
         const list = $('#syncSitesList');
         const sites = (consoleState && consoleState.sites) || [];
-        if (!sites.length) { list.hidden = true; return; }
         const sessions = (consoleState && consoleState.sessions) || [];
         const activeSites = sites.filter(s => records.some(record => companyMatches(record, { site: s.key, company: s.label, companyAliases: SITE_ALIASES[s.key] || [] })));
-        const idleSites = sites.filter(s => !activeSites.includes(s));
         if (!activeSites.length) {
-          list.hidden = false;
-          list.innerHTML = '<div class="job-empty">台账中还没有可自动查询的投递。<br>从岗位库投递后，这里会出现对应公司的官网接入状态。</div>';
+          list.innerHTML = '<div class="job-empty">还没有接入任何公司。<br>从「找岗位」记为已投递后，这里会出现对应的公司。</div>';
           return;
         }
-        list.innerHTML = '<div class="sync-site-caption">按台账中已投递的公司展示（投递后自动出现对应官网）</div>'
-          + activeSites.map(s => {
+        list.innerHTML = activeSites.map(s => {
           const loginSess = sessions.find(x => x.kind === 'login' && x.site === s.key);
-          let dot = 'err', text = '未登录——点「登录接入」开启官网查询';
-          if (loginSess) { dot = 'warn'; text = '登录窗口已打开，完成扫码后点「登录完成」'; }
-          else if (s.hasProfile && s.hasSpec) {
-            dot = 'ok';
-            text = s.last ? `${formatClock(s.last.at)} 查到 ${(s.last.records || []).length} 条 · ${s.last.via === 'api' ? 'API 直连' : '页面模式'}` : '已接入，尚未查询';
-          } else if (s.hasProfile && s.hasSeeds) {
-            dot = 'warn'; text = '已登录，用预置接口（建议抓包校准）';
-          } else if (s.hasProfile) {
-            dot = 'warn'; text = '已登录，缺接口——在控制台点「抓包」';
-          }
-          const disabled = consoleQueryRunning ? 'disabled' : '';
-          let actions = '';
+          let dot = 'ok', state = '已连接', sub = '', actions = '';
           if (loginSess) {
-            actions = `<button class="btn btn-small btn-primary" data-console-action="login-confirm" data-id="${escapeHtml(loginSess.id)}" data-label="${escapeHtml(s.label)}" type="button">登录完成</button>
+            dot = 'warn'; state = '待完成登录';
+            sub = '在弹出的窗口完成登录后，回来点「我登录好了」';
+            actions = `<button class="btn btn-small btn-primary" data-console-action="login-confirm" data-id="${escapeHtml(loginSess.id)}" data-label="${escapeHtml(s.label)}" type="button">我登录好了</button>
                        <button class="btn btn-small" data-console-action="login-abort" data-id="${escapeHtml(loginSess.id)}" data-label="${escapeHtml(s.label)}" type="button">放弃</button>`;
+          } else if (!s.hasProfile) {
+            dot = 'err'; state = '未接入';
+            sub = '接入后，这家公司的投递状态自动更新';
+            actions = `<button class="btn btn-small" data-console-action="login" data-site="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label)}" type="button" ${consoleQueryRunning ? 'disabled' : ''}>去接入</button>`;
           } else {
-            actions = `${!s.hasProfile ? `<button class="btn btn-small" data-console-action="login" data-site="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label)}" type="button" ${disabled}>登录接入</button>` : ''}`
-              + `${s.hasProfile ? `<button class="btn btn-small" data-console-action="query" data-site="${escapeHtml(s.key)}" data-label="${escapeHtml(s.label)}" type="button" ${disabled}>查此站</button>` : ''}`;
+            sub = s.last ? `上次更新 ${formatClock(s.last.at)} · 跟进 ${(s.last.records || []).length} 条投递` : '已连接，点「现在刷新」获取最新进展';
           }
           return `<div class="sync-site">
-            <span><span class="sync-dot ${dot}"></span>${escapeHtml(s.label)}</span>
-            <span class="sync-site-right"><span class="sub">${escapeHtml(text)}</span><span class="sync-site-actions">${actions}</span></span>
+            <span><span class="sync-dot ${dot}"></span>${escapeHtml(s.label)} · ${escapeHtml(state)}</span>
+            <span class="sync-site-right"><span class="sub">${escapeHtml(sub)}</span><span class="sync-site-actions">${actions}</span></span>
           </div>`;
-        }).join('')
-          + (idleSites.length ? `<div class="sync-site-caption">其余 ${idleSites.length} 个已支持站点暂无投递记录：${escapeHtml(idleSites.map(s => s.label).join('、'))}（投递后自动出现）</div>` : '');
+        }).join('');
       }
 
       async function consoleApi(path, body) {
@@ -1940,39 +1807,6 @@
         const j = await resp.json().catch(() => ({}));
         if (!resp.ok || j.error) throw new Error(j.error || 'HTTP ' + resp.status);
         return j;
-      }
-
-      async function querySite(site, label) {
-        if (consoleQueryRunning) return;
-        consoleQueryRunning = true;
-        const statusBox = $('#syncQueryStatus');
-        statusBox.hidden = false;
-        statusBox.className = 'capture-status';
-        const startedAt = Date.now();
-        try {
-          statusBox.textContent = `正在查询 ${label}…`;
-          await consoleApi('/api/status', { site });
-          for (;;) {
-            await new Promise(r => setTimeout(r, 1500));
-            const st = await consoleApi('/api/state');
-            const busy = st.busy;
-            const lastLog = busy && busy.logs && busy.logs.length ? busy.logs[busy.logs.length - 1] : '';
-            statusBox.textContent = `正在查询 ${label}（${Math.round((Date.now() - startedAt) / 1000)}s）… ${lastLog}`;
-            if (!busy || busy.done) break;
-            if (Date.now() - startedAt > 240000) throw new Error('查询超时，请稍后重试');
-          }
-          const payload = await consoleApi('/api/tracker-sync');
-          const result = ingestPayload(payload, 'console');
-          statusBox.className = 'capture-status success';
-          statusBox.textContent = result?.stale ? `${label} 查询完成：状态无变化` : `${label} 查询完成：${syncState.lastSummary}`;
-          await probeConsole();
-        } catch (error) {
-          statusBox.className = 'capture-status error';
-          statusBox.textContent = `${label} 查询失败：${error.message || error}`;
-        } finally {
-          consoleQueryRunning = false;
-          renderSyncPanel();
-        }
       }
 
       async function startConsoleLogin(site, label) {
@@ -2006,6 +1840,22 @@
         }
       }
 
+      function activeCompanySites() {
+        const sites = (consoleState && consoleState.sites) || [];
+        return sites.filter(s => records.some(record => companyMatches(record, { site: s.key, company: s.label, companyAliases: SITE_ALIASES[s.key] || [] })));
+      }
+
+      function relativeTime(value) {
+        const t = Date.parse(value);
+        if (!t) return '';
+        const minutes = Math.max(0, Math.round((Date.now() - t) / 60000));
+        if (minutes < 1) return '刚刚';
+        if (minutes < 60) return `${minutes} 分钟`;
+        const hours = Math.round(minutes / 60);
+        if (hours < 24) return `${hours} 小时`;
+        return `${Math.round(hours / 24)} 天`;
+      }
+
       function renderSyncPanel() {
         const badge = $('#syncNavBadge');
         const pendingCount = syncState.pending.length;
@@ -2013,103 +1863,102 @@
         badge.textContent = pendingCount;
         if (!$('#autofollow')) return;
 
-        const hasHandle = Boolean(syncFileHandle);
-        const useDirect = consoleReachable === true;
-        $('#syncSetup').hidden = useDirect || hasHandle || consoleReachable === null; // 探测未完成前不显示文件引导
-        $('#syncConnected').hidden = !useDirect && !hasHandle;
-        $('#syncConsoleRow').hidden = !useDirect;
-        if (useDirect) renderSitesHealth();
-        if (!hasHandle) {
-          if (!useDirect) {
-            const status = $('#syncSetupStatus');
-            status.hidden = !syncState.lastSummary || syncState.lastSummary === '尚未同步';
-            if (!status.hidden) {
-              status.className = 'capture-status success';
-              status.textContent = `上次同步：${syncState.lastSummary}（${syncState.lastCheckedAt ? formatClock(syncState.lastCheckedAt) : ''}）`;
-            }
-          }
-        } else {
-          $('#syncFileName').textContent = syncFileHandle.name || 'tracker-sync.json';
-          const sub = $('#syncFileSub');
-          if (syncState.needsAuth) sub.innerHTML = '<span class="sync-dot warn"></span>需要重新授权';
-          else if (syncState.lastError) sub.innerHTML = '<span class="sync-dot err"></span>读取异常';
-          else sub.innerHTML = `<span class="sync-dot ok"></span>已连接 · 上次检查 ${syncState.lastCheckedAt ? formatClock(syncState.lastCheckedAt) : '尚未执行'} · ${syncState.lastSummary || '尚未同步'}`;
+        const direct = $('#syncDirect');
+        const fallback = $('#syncFallback');
+        const connecting = $('#syncConnecting');
+        if (consoleReachable === null) {
+          direct.hidden = true; fallback.hidden = true; connecting.hidden = false;
+          return;
         }
-        const fileOnly = hasHandle;
-        $('#syncCheckBtn').hidden = !fileOnly;
-        $('#syncChangeBtn').hidden = !fileOnly;
-        $('#syncRegrantBtn').hidden = !fileOnly || !syncState.needsAuth;
-        $('#syncAuthBox').hidden = !fileOnly || !syncState.needsAuth;
-        $('#syncAppliedCount').textContent = syncState.stats.applied || 0;
-        $('#syncPendingCount').textContent = pendingCount;
-        $('#syncPendingStat').classList.toggle('is-hot', pendingCount > 0);
-        $('#syncCheckCount').textContent = syncState.checks || 0;
-        $('#syncPauseBtn').textContent = syncState.paused ? '恢复自动' : '暂停自动';
-        const errorBox = $('#syncErrorBox');
-        errorBox.hidden = !fileOnly || !syncState.lastError;
-        errorBox.textContent = fileOnly ? (syncState.lastError || '') : '';
+        connecting.hidden = true;
+        direct.hidden = !consoleReachable;
+        fallback.hidden = consoleReachable;
+        if (!consoleReachable) return;
 
-        const queueArea = $('#syncQueueArea');
-        const allClear = $('#syncAllClear');
-        const seedBox = $('#syncSeedBox');
+        const last = syncState.lastCheckedAt;
+        $('#statLastUpdate').textContent = last ? formatClock(last) : '—';
+        $('#syncFreshness').textContent = `${last ? `上次更新 ${formatClock(last)}（${relativeTime(last)}前）` : '尚未获取过进展'} · 每天 9:30 / 14:30 / 20:00 自动刷新`;
+        $('#statCompanies').textContent = activeCompanySites().length;
+        $('#statPendingN').textContent = pendingCount;
+        $('#statPending').classList.toggle('is-hot', pendingCount > 0);
+        renderSitesHealth();
+
         const seedable = !records.length && pendingCount > 0 && syncState.pending.every(item => item.reason === 'new');
-        seedBox.hidden = !seedable;
+        $('#syncSeedBox').hidden = !seedable;
         if (seedable) {
           $('#syncSeedChips').innerHTML = siteChipCounts(syncState.pending)
             .map(([name, count]) => `<span class="sync-chip">${escapeHtml(name)} ${count}</span>`).join('');
-          $('#syncSeedAllBtn').textContent = `全部建为记录（${pendingCount} 条）`;
+          $('#syncSeedAllBtn').textContent = `全部记入（${pendingCount} 条）`;
         }
-        if (!pendingCount) {
-          queueArea.hidden = true;
-          allClear.hidden = false;
+      }
+
+      /* ==================== 拍板（一次一张） ==================== */
+
+      let adjIndex = 0;
+
+      function openAdjudicate() {
+        if (!syncState.pending.length) return showToast('暂时没有需要拍板的进展');
+        adjIndex = 0;
+        $('#adjudicateDialog').showModal();
+        renderAdjudicate();
+      }
+
+      function renderAdjudicate() {
+        const item = syncState.pending[adjIndex];
+        if (!item) {
+          $('#adjudicateDialog').close();
+          showToast('都处理完了');
           return;
         }
-        allClear.hidden = true;
-        queueArea.hidden = false;
-        $('#syncQueueTitle').textContent = `⚠ ${pendingCount} 条待你确认`;
-        $('#syncQueueList').innerHTML = syncState.pending.map(item => {
-          const scene = sceneMeta(item.reason);
-          const candidateOptions = item.matchIds
-            .map(id => records.find(r => r.id === id))
-            .filter(Boolean)
-            .map(record => `<option value="${escapeHtml(record.id)}">${escapeHtml(record.company)} · ${escapeHtml(record.position)}（${escapeHtml(record.stage)}）</option>`)
-            .join('');
-          let diff = '';
-          if (item.reason === 'override' || item.reason === 'revive') {
-            const record = records.find(r => r.id === item.matchIds[0]);
-            const from = record ? record.stage : '';
-            const to = item.reason === 'revive' ? (classifyOfficial(item).stage || '已投递') : classifyOfficial(item).stage;
-            diff = `<div class="sync-diff">台账：${escapeHtml(from)} <span class="arrow">→</span> 将更新为：${escapeHtml(to)}</div>`
-              + (item.reason === 'override' ? '<div class="sync-guard">ℹ 你在上次同步后手动改过这条，故请你裁决</div>' : '<div class="sync-guard">ℹ 台账已结束，但官方仍有新动态</div>');
-          } else if (item.reason === 'fuzzy') {
-            diff = `<div class="sync-diff">候选：<select class="control" data-cand-key="${escapeHtml(item.key)}">${candidateOptions || '<option value="">（无候选）</option>'}</select></div>`;
-          } else {
-            diff = '<div class="sync-diff">台账中没有这条的匹配记录。</div>';
-          }
-          const actions = {
-            override: `<button class="btn btn-primary btn-small" data-sync-action="apply" data-key="${escapeHtml(item.key)}" type="button">覆盖为官方</button>
-                       <button class="btn btn-small" data-sync-action="keep" data-key="${escapeHtml(item.key)}" type="button">保留我的</button>`,
-            revive: `<button class="btn btn-primary btn-small" data-sync-action="apply" data-key="${escapeHtml(item.key)}" type="button">恢复并更新</button>
-                     <button class="btn btn-small" data-sync-action="keep" data-key="${escapeHtml(item.key)}" type="button">保持结束</button>`,
-            fuzzy: `<button class="btn btn-primary btn-small" data-sync-action="apply" data-key="${escapeHtml(item.key)}" type="button">应用到这条</button>
-                    <button class="btn btn-small" data-sync-action="newrec" data-key="${escapeHtml(item.key)}" type="button">都不是，新建</button>
-                    <button class="btn btn-small" data-sync-action="ignore" data-key="${escapeHtml(item.key)}" type="button">忽略</button>`,
-            new: `<button class="btn btn-primary btn-small" data-sync-action="newrec" data-key="${escapeHtml(item.key)}" type="button">新建记录</button>
-                  <button class="btn btn-small" data-sync-action="ignore" data-key="${escapeHtml(item.key)}" type="button">忽略</button>`
-          }[item.reason] || '';
-          return `<div class="sync-card ${scene.cls}">
-            <span class="sync-scene">${scene.tag}</span>
-            <div class="sync-card-title">${escapeHtml(item.company)} · ${escapeHtml(item.job)}</div>
-            <div class="sync-official">官方：<b>${escapeHtml(item.statusRaw || item.status || '未知')}</b></div>
-            <div class="sync-meta">${escapeHtml([item.dept, item.city, item.appliedAt ? `投递 ${item.appliedAt}` : '', item.fetchedAt ? `${formatClock(item.fetchedAt)} 抓取` : ''].filter(Boolean).join(' · '))}</div>
-            ${diff}
-            <div class="sync-card-actions">${actions}</div>
-          </div>`;
-        }).join('');
-        const newsCount = syncState.pending.filter(item => item.reason === 'new').length;
-        const batchBtn = $('#syncBatchNewBtn');
-        batchBtn.hidden = newsCount < 2;
-        batchBtn.textContent = `全部新建（${newsCount} 条）`;
+        $('#adjProgress').textContent = `第 ${adjIndex + 1} / ${syncState.pending.length} 条`;
+        const cls = classifyOfficial(item);
+        const record = (item.matchIds || []).length ? records.find(r => r.id === item.matchIds[0]) : null;
+        const official = escapeHtml(item.statusRaw || item.status || '有新进展');
+        const meta = escapeHtml([
+          item.city,
+          item.appliedAt ? `投递于 ${String(item.appliedAt).slice(0, 10)}` : '',
+          item.fetchedAt ? `更新于 ${formatClock(item.fetchedAt)}` : ''
+        ].filter(Boolean).join(' · '));
+        const title = `<div class="adj-body-title">${escapeHtml(item.company)} · ${escapeHtml(item.job)}</div><div class="adj-meta">${meta}</div>`;
+        if (item.reason === 'override' && record) {
+          $('#adjBody').innerHTML = `${title}
+            <div class="adj-fact">官网显示这条已经<b>${escapeHtml(cls.stage)}</b>（${official}）<br>你的记录当前是<b>${escapeHtml(record.stage)}</b>，而且是你自己改过的</div>
+            <p class="adj-question">听官网的吗？</p>
+            <div class="adj-actions"><button class="btn btn-primary" data-adj="apply" type="button">听官网的</button><button class="btn" data-adj="keep" type="button">保留我的</button></div>`;
+        } else if (item.reason === 'revive' && record) {
+          $('#adjBody').innerHTML = `${title}
+            <div class="adj-fact">你把这条标记为「已结束」，但官网流程又动了起来<br>官网现在显示：<b>${escapeHtml(cls.stage || '已投递')}</b>（${official}）</div>
+            <p class="adj-question">恢复跟进吗？</p>
+            <div class="adj-actions"><button class="btn btn-primary" data-adj="apply" type="button">恢复跟进</button><button class="btn" data-adj="keep" type="button">保持结束</button></div>`;
+        } else if (item.reason === 'fuzzy' && (item.matchIds || []).some(id => records.some(r => r.id === id))) {
+          const candidates = item.matchIds.map(id => records.find(r => r.id === id)).filter(Boolean);
+          $('#adjBody').innerHTML = `${title}
+            <div class="adj-fact">官网显示：${official}</div>
+            <p class="adj-question">是你记录里的哪一条吗？</p>
+            <div class="bind-entries">${candidates.map(r => `<button class="bind-entry" data-adj-cand="${escapeHtml(r.id)}" type="button"><span>${escapeHtml(r.company)} · ${escapeHtml(r.position)}</span><span class="sub">当前：${escapeHtml(r.stage)}</span></button>`).join('')}</div>
+            <div class="adj-actions"><button class="btn" data-adj="newrec" type="button">都不是，新建记录</button></div>`;
+        } else {
+          $('#adjBody').innerHTML = `${title}
+            <div class="adj-fact">官网显示：${official}<br>你的台账里还没有这条投递</div>
+            <p class="adj-question">记入台账吗？</p>
+            <div class="adj-actions"><button class="btn btn-primary" data-adj="newrec" type="button">记入台账</button><button class="btn" data-adj="ignore" type="button">不是我的</button></div>`;
+        }
+      }
+
+      function handleAdjudicate(event) {
+        const cand = event.target.closest('button[data-adj-cand]');
+        if (cand) return resolveAdj('apply', cand.dataset.adjCand);
+        const btn = event.target.closest('button[data-adj]');
+        if (!btn) return;
+        const item = syncState.pending[adjIndex];
+        resolveAdj(btn.dataset.adj, item && item.matchIds && item.matchIds[0] || null);
+      }
+
+      function resolveAdj(action, chosenId) {
+        const item = syncState.pending[adjIndex];
+        if (!item) return;
+        resolvePending(item.key, action, chosenId || null);
+        renderAdjudicate();
       }
 
       function openSyncDialog() {
@@ -3082,8 +2931,11 @@
       $('#safetyBtn').addEventListener('click', openSafetyDialog);
       $('#sideSafetyBtn2').addEventListener('click', openSafetyDialog);
       $('#sideExportBtn').addEventListener('click', exportData);
-      $('#sideSyncBtn').addEventListener('click', openSyncDialog);
-      $('#todoConfirm').addEventListener('click', openSyncDialog);
+      $('#sideSyncBtn').addEventListener('click', () => {
+        if (syncState.pending.length) openAdjudicate();
+        else openSyncDialog();
+      });
+      $('#todoConfirm').addEventListener('click', openAdjudicate);
       $('#todoOnboard').addEventListener('click', openSyncDialog);
       $('#todoUpcoming').addEventListener('click', () => $('#records').scrollIntoView({ behavior: 'smooth', block: 'start' }));
       $('#todoBind').addEventListener('click', () => $('#records').scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -3171,32 +3023,22 @@
       $('#importBtn').addEventListener('click', () => $('#importFileInput').click());
       $('#importFileInput').addEventListener('change', importBackupFile);
       $('#restoreSnapshotBtn').addEventListener('click', restorePreviousSnapshot);
-      $('#chooseSyncFileBtn').addEventListener('click', connectSyncFile);
-      $('#syncChangeBtn').addEventListener('click', connectSyncFile);
-      $('#syncCheckBtn').addEventListener('click', () => checkSyncFile(true));
-      $('#syncPauseBtn').addEventListener('click', toggleSyncPause);
-      $('#syncRegrantBtn').addEventListener('click', regrantSyncFile);
-      $('#syncRegrantBtn2').addEventListener('click', regrantSyncFile);
-      $('#syncExportBtn').addEventListener('click', exportSyncPayload);
-      $('#syncQueryBtn').addEventListener('click', queryViaConsole);
+      $('#syncRefreshBtn').addEventListener('click', queryViaConsole);
+      $('#statPending').addEventListener('click', openAdjudicate);
       $('#syncSitesList').addEventListener('click', event => {
         const btn = event.target.closest('button[data-console-action]');
         if (!btn || btn.disabled) return;
         const { consoleAction: action, site, label, id } = btn.dataset;
-        if (action === 'query') querySite(site, label);
-        else if (action === 'login') startConsoleLogin(site, label);
+        if (action === 'login') startConsoleLogin(site, label);
         else if (action === 'login-confirm') confirmConsoleLogin(id, label);
         else if (action === 'login-abort') abortConsoleLogin(id, label);
       });
       $('#syncSeedAllBtn').addEventListener('click', bulkCreatePending);
-      $('#syncSeedOneBtn').addEventListener('click', () => { $('#syncSeedBox').hidden = true; });
-      $('#syncBatchNewBtn').addEventListener('click', bulkCreatePending);
-      $('#syncQueueList').addEventListener('click', event => {
-        const btn = event.target.closest('button[data-sync-action]');
-        if (!btn) return;
-        const select = btn.closest('.sync-card')?.querySelector('select[data-cand-key]');
-        resolvePending(btn.dataset.key, btn.dataset.syncAction, select ? (select.value || null) : null);
-      });
+      $('#syncSeedOneBtn').addEventListener('click', () => { $('#syncSeedBox').hidden = true; openAdjudicate(); });
+      $('#adjBody').addEventListener('click', handleAdjudicate);
+      $('#adjIgnore').addEventListener('click', () => resolveAdj('ignore'));
+      $('#closeAdjudicate').addEventListener('click', () => $('#adjudicateDialog').close());
+      closeOnBackdrop('#adjudicateDialog', () => $('#adjudicateDialog').close());
       $('#closeInstallDialog').addEventListener('click', () => $('#installDialog').close());
       $('#doneInstallDialog').addEventListener('click', () => $('#installDialog').close());
       closeOnBackdrop('#installDialog', () => $('#installDialog').close());
