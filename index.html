@@ -1587,6 +1587,21 @@
           }
         }
         if (orphan) showToast(`${orphan} 条记录在官网已不存在，已自动转为手动维护（数据未删除）`);
+        // 邮件里的笔试/面试邀约：作为安排建议进拍板队列（绝不自动写入——时间写错比不写更糟）
+        const tips = Array.isArray(payload.mailTips) ? payload.mailTips : [];
+        for (const tip of tips) {
+          if (!tip || !tip.key || !tip.iso) continue;
+          if (ignoredSet.has(tip.key) || seenKeys.has(tip.key)) continue;
+          if (records.some(r => !r.isExample && r.scheduleAt === tip.iso && companyMatches(r, tip))) continue;
+          const candidates = records.filter(r => !r.isExample && companyMatches(r, tip)).slice(0, 5).map(r => r.id);
+          pushQueue({
+            key: tip.key, reason: 'mailtip', site: 'mail',
+            company: tip.company || '邮件邀约', job: tip.round || tip.kind || '安排',
+            statusRaw: `${tip.kind || '安排'}邀约`, dept: String(tip.subject || '').slice(0, 80), city: tip.place || '',
+            appliedAt: '', fetchedAt: tip.at || '', matchIds: candidates,
+            scheduleIso: tip.iso, round: tip.round || '', kindName: tip.kind || ''
+          });
+        }
         syncState.pending = [...syncState.pending, ...queued];
         // 官网条目全量留一份精简副本：编辑弹窗「绑定官网记录」与「N 条可绑定」待办都从这里取
         syncState.officialEntries = updates
@@ -1622,13 +1637,21 @@
           if (action === 'apply' && chosenId) {
             const record = records.find(r => r.id === chosenId);
             if (record) {
-              if (item.reason === 'revive' && cls.kind !== 'promote') record.stage = '已投递';
-              else if (cls.kind === 'terminal' || cls.kind === 'promote') record.stage = cls.stage;
-              // 裁决即绑定：确认过身份的记录写入 syncKey，之后按绑定直取，不再反复匹配、反复询问
-              record.syncKey = buildSyncKey(item);
-              record.orphanedAt = '';
-              record.noBind = false;
-              applySyncFields(item, record);
+              if (item.reason === 'mailtip') {
+                // 邮件邀约：只写安排信息，不碰阶段与官网绑定；已采用的不再重复建议
+                record.scheduleAt = item.scheduleIso;
+                record.recentSchedule = [item.round, item.city].filter(Boolean).join(' · ') || '邮件邀约';
+                record.updatedAt = Date.now();
+                syncState.ignored = [...new Set([...(syncState.ignored || []), item.key])];
+              } else {
+                if (item.reason === 'revive' && cls.kind !== 'promote') record.stage = '已投递';
+                else if (cls.kind === 'terminal' || cls.kind === 'promote') record.stage = cls.stage;
+                // 裁决即绑定：确认过身份的记录写入 syncKey，之后按绑定直取，不再反复匹配、反复询问
+                record.syncKey = buildSyncKey(item);
+                record.orphanedAt = '';
+                record.noBind = false;
+                applySyncFields(item, record);
+              }
               syncState.stats.applied += 1;
             }
           } else {
@@ -1922,6 +1945,18 @@
           item.fetchedAt ? `更新于 ${formatClock(item.fetchedAt)}` : ''
         ].filter(Boolean).join(' · '));
         const title = `<div class="adj-body-title">${escapeHtml(item.company)} · ${escapeHtml(item.job)}</div><div class="adj-meta">${meta}</div>`;
+        if (item.reason === 'mailtip') {
+          const candidates = (item.matchIds || []).map(id => records.find(r => r.id === id)).filter(Boolean);
+          $('#adjBody').innerHTML = `${title}
+            <div class="adj-fact">邮箱里发现一条<b>${escapeHtml(item.kindName || '面试/笔试')}</b>邀约<br>
+            时间：<b>${escapeHtml(formatDateTime(item.scheduleIso))}</b>${item.city ? ` · 地点：${escapeHtml(item.city)}` : ''}<br>
+            <span class="adj-meta">邮件主题：${escapeHtml(item.dept || '（无主题）')}</span></div>
+            <p class="adj-question">是你哪条投递的安排？</p>
+            ${candidates.length
+              ? `<div class="bind-entries">${candidates.map(r => `<button class="bind-entry" data-adj-cand="${escapeHtml(r.id)}" type="button"><span>${escapeHtml(r.company)} · ${escapeHtml(r.position)}</span><span class="sub">当前：${escapeHtml(r.stage)}</span></button>`).join('')}</div>`
+              : '<div class="hint">台账里还没有这家公司的投递记录。可先在「我的投递」手动新增，时间从这里照抄。</div>'}`;
+          return;
+        }
         if (item.reason === 'override' && record) {
           $('#adjBody').innerHTML = `${title}
             <div class="adj-fact">官网显示这条已经<b>${escapeHtml(cls.stage)}</b>（${official}）<br>你的记录当前是<b>${escapeHtml(record.stage)}</b>，而且是你自己改过的</div>
