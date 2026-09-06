@@ -1,7 +1,7 @@
 校招投递管理｜快速使用说明
 
 在线版：
-https://tian-zhen-yin.github.io/autumn-recruitment-tracker/
+https://tian-zhen-yin.github.io/campus-recruitment-tracker/
 
 1. 电脑可直接用 Chrome、Edge 或 Safari 打开在线版。
 2. iPhone 请用 Safari 打开，点击“分享”→“添加到主屏幕”。

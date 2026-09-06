@@ -1,13 +1,13 @@
 #!/bin/bash
 # 校招投递管理 · 完整版在线安装（Mac）
 # 用法（复制整行到终端执行）：
-#   curl -fsSL https://tian-zhen-yin.github.io/autumn-recruitment-tracker/install.sh | bash
+#   curl -fsSL https://tian-zhen-yin.github.io/campus-recruitment-tracker/install.sh | bash
 # 可选参数：--dry-run（只检查与解压，不注册服务）
 set -uo pipefail
 # 中文文案紧贴变量的写法要求 UTF-8 locale：C locale 下 bash 会把全角标点字节并进变量名
 export LANG="${LANG:-en_US.UTF-8}"
 
-BASE="https://tian-zhen-yin.github.io/autumn-recruitment-tracker"
+BASE="https://tian-zhen-yin.github.io/campus-recruitment-tracker"
 ZIP_URL="$BASE/downloads/%E6%A0%A1%E6%8B%9B%E6%8A%95%E9%80%92%E7%AE%A1%E7%90%86-%E5%AE%8C%E6%95%B4%E7%89%88-Mac-v3.3.1.zip"
 DEST="$HOME/校招投递管理"
 EXTRA="${1:-}"
