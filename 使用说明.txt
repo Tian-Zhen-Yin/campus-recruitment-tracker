@@ -1,4 +1,4 @@
-秋招投递管理器｜快速使用说明
+校招投递管理｜快速使用说明
 
 在线版：
 https://tian-zhen-yin.github.io/autumn-recruitment-tracker/

@@ -1,4 +1,4 @@
-# 秋招投递台账（Autumn Recruitment Tracker）
+# 校招投递台账（Campus Recruitment Tracker）
 
 求职者管理校招投递的主界面与数据主副本。数据保存在用户浏览器本地；官网状态由本机控制台抓取后由台账合并。
 

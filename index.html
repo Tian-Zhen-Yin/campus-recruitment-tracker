@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#5367e9">
-  <meta name="description" content="本地保存、随时跟进的秋招投递管理器">
+  <meta name="description" content="本地保存、随时跟进的校招投递管理">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="秋招管理">
+  <meta name="apple-mobile-web-app-title" content="校招管理">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-  <title>秋招投递管理</title>
+  <title>校招投递管理</title>
   <style>
     :root {
       --bg: #f6f8fc;
@@ -440,7 +440,7 @@
     <aside class="app-sidebar" aria-label="主导航">
       <div class="sidebar-brand">
         <div class="brand-mark" aria-hidden="true">↗</div>
-        <div><div class="sidebar-title">秋招投递管理</div><div class="sidebar-subtitle">让每次投递都有迹可循</div></div>
+        <div><div class="sidebar-title">校招投递管理</div><div class="sidebar-subtitle">让每次投递都有迹可循</div></div>
       </div>
       <nav class="sidebar-nav">
         <a class="nav-item is-active" href="#overview"><span class="nav-icon">⌂</span><span>总览</span></a>
@@ -1214,7 +1214,7 @@
         }
         try {
           backupFileHandle = await window.showSaveFilePicker({
-            suggestedName: '秋招投递自动备份.json',
+            suggestedName: '校招投递自动备份.json',
             types: [{ description: 'JSON 备份文件', accept: { 'application/json': ['.json'] } }]
           });
           await dbPut('handles', backupFileHandle, 'backupFile');
@@ -1269,13 +1269,13 @@
           const incoming = Array.isArray(parsed) ? parsed : parsed.records;
           if (!Array.isArray(incoming) || incoming.some(item => !item || typeof item !== 'object')) throw new Error('文件中没有有效记录');
           if (!confirm(`备份中有 ${incoming.length} 条记录。\n\n继续后将替换当前 ${records.length} 条记录，系统会先下载一份“导入前备份”。是否继续？`)) return;
-          downloadPayload(createEnvelope(records), `秋招投递-导入前备份-${localDateInput(new Date())}.json`);
+          downloadPayload(createEnvelope(records), `校招投递-导入前备份-${localDateInput(new Date())}.json`);
           records = incoming.map(normalizeRecord);
           saveRecords(`已导入并保护 ${records.length} 条记录`);
           render();
           updateSafetyStatus();
         } catch (error) {
-          alert(`导入失败：${error.message || '这不是有效的秋招投递备份文件。'}`);
+          alert(`导入失败：${error.message || '这不是有效的校招投递备份文件。'}`);
         }
       }
 
@@ -1289,7 +1289,7 @@
             return;
           }
           if (!confirm(`将恢复 ${formatClock(previous.savedAt)} 的快照，共 ${previous.records.length} 条记录。\n系统会先下载当前数据备份。是否继续？`)) return;
-          downloadPayload(createEnvelope(records), `秋招投递-恢复前备份-${localDateInput(new Date())}.json`);
+          downloadPayload(createEnvelope(records), `校招投递-恢复前备份-${localDateInput(new Date())}.json`);
           records = previous.records.map(normalizeRecord);
           saveRecords(`已恢复 ${records.length} 条记录`);
           render();
@@ -2919,7 +2919,7 @@
         window.addEventListener('appinstalled', () => {
           deferredInstallPrompt = null;
           installButton.hidden = true;
-          showToast('秋招投递管理器已安装到桌面');
+          showToast('校招投递管理已安装到桌面');
         });
         // 同源托管在控制台根路径时，Service Worker 作用域会覆盖整个 origin（含 /console/），故托管态不注册，并清掉历史注册
         if ('serviceWorker' in navigator && hostedByConsole()) {

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 秋招投递管理 · 完整版在线安装（Mac）
+# 校招投递管理 · 完整版在线安装（Mac）
 # 用法（复制整行到终端执行）：
 #   curl -fsSL https://tian-zhen-yin.github.io/autumn-recruitment-tracker/install.sh | bash
 # 可选参数：--dry-run（只检查与解压，不注册服务）
@@ -8,8 +8,8 @@ set -uo pipefail
 export LANG="${LANG:-en_US.UTF-8}"
 
 BASE="https://tian-zhen-yin.github.io/autumn-recruitment-tracker"
-ZIP_URL="$BASE/downloads/%E7%A7%8B%E6%8B%9B%E6%8A%95%E9%80%92%E7%AE%A1%E7%90%86-%E5%AE%8C%E6%95%B4%E7%89%88-Mac-v3.3.0.zip"
-DEST="$HOME/秋招投递管理"
+ZIP_URL="$BASE/downloads/%E6%A0%A1%E6%8B%9B%E6%8A%95%E9%80%92%E7%AE%A1%E7%90%86-%E5%AE%8C%E6%95%B4%E7%89%88-Mac-v3.3.0.zip"
+DEST="$HOME/校招投递管理"
 EXTRA="${1:-}"
 
 say() { echo "▸ $*"; }

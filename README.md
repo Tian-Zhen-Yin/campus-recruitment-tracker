@@ -1,16 +1,16 @@
-# 秋招投递管理器
+# 校招投递管理
 
-一个面向秋招求职者的投递管理工具，可在电脑浏览器和手机上使用。无需注册账号，投递数据默认只保存在使用者自己的浏览器中。
+一个面向校招求职者（秋招 / 春招 / 暑期实习 / 日常实习）的投递管理工具，可在电脑浏览器和手机上使用。无需注册账号，投递数据默认只保存在使用者自己的浏览器中。
 
 ## 普通用户请从这里开始
 
-**[打开简洁下载中心](https://songxue0614-lgtm.github.io/autumn-recruitment-tracker/download.html)**
+**[打开简洁下载中心](https://tian-zhen-yin.github.io/autumn-recruitment-tracker/download.html)**
 
 下载中心只有三个选择：在线使用、下载电脑离线版、下载浏览器插件。普通使用者不需要理解仓库里的技术文件。
 
 ## 立即使用
 
-**在线网页版：** [打开秋招投递管理器](https://songxue0614-lgtm.github.io/autumn-recruitment-tracker/)
+**在线网页版：** [打开校招投递管理](https://tian-zhen-yin.github.io/autumn-recruitment-tracker/)
 
 - 电脑：推荐使用 Chrome、Edge 或 Safari 直接打开。
 - iPhone：使用 Safari 打开后，点击“分享” → “添加到主屏幕”。
@@ -20,7 +20,7 @@
 
 | 内容 | 适用场景 | 下载 |
 | --- | --- | --- |
-| 电脑离线版 v3.0.0 | 不依赖网络，解压后双击 `index.html` | [下载离线版](./downloads/秋招投递管理器-电脑离线版-v3.0.0.zip) |
+| 电脑离线版 v3.3.0 | 不依赖网络，解压后双击 `index.html` | [下载离线版](./downloads/校招投递管理-电脑离线版-v3.0.0.zip) |
 | 秋招一键收录插件 v1.4.4 | 电脑 Chrome/Edge 识别招聘页面 | [下载插件](./downloads/秋招一键收录插件-v1.4.4.zip) |
 
 > 手机端不能安装 Chrome 扩展程序。手机可以使用网页本身以及截图识别功能。

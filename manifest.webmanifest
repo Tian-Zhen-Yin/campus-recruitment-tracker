@@ -1,7 +1,7 @@
 {
-  "name": "秋招投递管理器",
-  "short_name": "秋招管理",
-  "description": "本地保存、随时跟进的秋招投递管理器",
+  "name": "校招投递管理",
+  "short_name": "校招管理",
+  "description": "本地保存、随时跟进的校招投递管理",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",
