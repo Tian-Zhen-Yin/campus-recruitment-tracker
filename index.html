@@ -84,8 +84,10 @@
     .subtitle { margin: 3px 0 0; color: var(--muted); font-size: 14px; }
     .top-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
     .btn {
+      /* 统一 inline-flex：<a class="btn"> 与 <button class="btn"> 才能同样高（行内 a 会丢 min-height 与垂直 padding） */
+      display: inline-flex; align-items: center; justify-content: center;
       border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 11px;
-      min-height: 42px; padding: 0 15px; font-weight: 650; transition: .18s ease;
+      min-height: 42px; padding: 0 15px; font-weight: 650; text-decoration: none; transition: .18s ease;
     }
     .btn:hover { transform: translateY(-1px); border-color: #ccd3e2; box-shadow: 0 5px 14px rgba(33, 45, 75, .08); }
     .btn-primary { border-color: var(--primary); background: var(--primary); color: #fff; }
