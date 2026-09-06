@@ -732,25 +732,39 @@
       'use strict';
 
       const STAGES = ['待投递', '已投递', '笔试', '一面', '二面', 'HR面', 'Offer', '已结束'];
-      // 永久兼容约定：后续版本不得更改或复用此键；字段升级统一通过 normalizeRecord 迁移。
-      const STORAGE_KEY = 'autumnRecruitmentTracker.records.v1';
-      const JOB_POOL_KEY = 'autumnRecruitmentTracker.jobPool.v1';
-      const JOB_POOL_META_KEY = 'autumnRecruitmentTracker.jobPoolMeta.v1';
+      // 永久兼容约定：后续版本不得更改或复用这些键；v3.3.1 前的旧键（autumnRecruitmentTracker.*）由 migrateLegacyStorage 一次性搬迁，旧键原地保留作灾难备份。
+      const STORAGE_KEY = 'campusRecruitmentTracker.records.v1';
+      const JOB_POOL_KEY = 'campusRecruitmentTracker.jobPool.v1';
+      const JOB_POOL_META_KEY = 'campusRecruitmentTracker.jobPoolMeta.v1';
       const QQ_JOB_DOC_URL = 'https://docs.qq.com/smartsheet/DUXJLSnZoTVFhVUVs?tab=tkaHEa&viewId=vKWCWH';
       const SCHEMA_VERSION = 1;
-      const APP_VERSION = '3.0.0';
-      const SAFETY_DB_NAME = 'autumnRecruitmentTracker.safety.v1';
+      const APP_VERSION = '3.3.1';
+      const SAFETY_DB_NAME = 'campusRecruitmentTracker.safety.v1';
+      const LEGACY_SAFETY_DB_NAME = 'autumnRecruitmentTracker.safety.v1';
       // 损坏数据隔离键：主数据解析失败时先把原文原文保全到这里，绝不用示例数据覆盖主键
-      const RESCUE_KEY = 'autumnRecruitmentTracker.records.rescue.v1';
+      const RESCUE_KEY = 'campusRecruitmentTracker.records.rescue.v1';
       // 终态阶段：所有"是否已终结"的判断统一从这里取，避免多处列表漂移
       const TERMINAL_STAGES = ['Offer', '已结束'];
       // 城市白名单：岗位表格解析与截图识别共用一份（两处词表的并集）
       const CITY_WHITELIST = ['北京', '上海', '广州', '深圳', '杭州', '南京', '苏州', '成都', '重庆', '武汉', '西安', '长沙', '天津', '厦门', '合肥', '郑州', '青岛', '济南', '宁波', '无锡', '珠海', '佛山', '东莞', '福州', '昆明', '南昌', '大连', '沈阳', '哈尔滨', '石家庄', '太原', '贵阳', '南宁', '海口', '兰州', '乌鲁木齐', '呼和浩特', '长春', '香港', '澳门', '全国', '远程'];
       // ===== 官方状态同步（tracker-sync）=====
-      const SYNC_KEY = 'autumnRecruitmentTracker.syncState.v1';
+      const SYNC_KEY = 'campusRecruitmentTracker.syncState.v1';
       const SYNC_KIND = 'autumn-tracker-status-sync';
       const SYNC_SCHEMA_VERSION = 1;
       const SYNC_POLL_MS = 60000;
+      // v3.3.1 更名迁移：旧前缀键一次性搬迁到新前缀（新键已存在则不动；旧键原地保留作灾难备份）
+      const LEGACY_KEY_PREFIX = 'autumnRecruitmentTracker.';
+      const KEY_PREFIX = 'campusRecruitmentTracker.';
+      function migrateLegacyStorage() {
+        for (const suffix of ['records.v1', 'jobPool.v1', 'jobPoolMeta.v1', 'syncState.v1', 'records.rescue.v1']) {
+          try {
+            const legacy = localStorage.getItem(LEGACY_KEY_PREFIX + suffix);
+            if (legacy !== null && localStorage.getItem(KEY_PREFIX + suffix) === null) {
+              localStorage.setItem(KEY_PREFIX + suffix, legacy);
+            }
+          } catch (_) {}
+        }
+      }
       const SITE_NAMES = { meituan: '美团', bytedance: '字节跳动', kuaishou: '快手', ctrip: '携程', xiaohongshu: '小红书', alibaba: '阿里巴巴' };
       const SITE_ALIASES = {
         meituan: ['美团', '美团点评'],
@@ -767,6 +781,7 @@
         upcoming: $('#upcomingList'), search: $('#searchInput'), stageFilter: $('#stageFilter'), sort: $('#sortSelect'),
         dialog: $('#recordDialog'), form: $('#recordForm'), dialogTitle: $('#dialogTitle'), toast: $('#toast')
       };
+      migrateLegacyStorage(); // 存储键更名迁移必须先于任何读取
       let primaryLoadState = 'unknown';
       // 页面打开后是否发生过用户驱动的保存；用于快照自动恢复前的冲突守卫
       let recordsMutated = false;
@@ -1144,8 +1159,39 @@
         if (backupFileHandle) await writeBackupFile(envelope, false);
       }
 
+      // v3.3.1 更名迁移：旧安全库（snapshots/handles）整体搬到新库名下；新库已有数据则跳过
+      async function migrateLegacySafetyDb() {
+        if (!('indexedDB' in window)) return;
+        const dbs = await (indexedDB.databases ? indexedDB.databases().catch(() => []) : Promise.resolve([]));
+        if (!Array.isArray(dbs) || !dbs.some(d => d.name === LEGACY_SAFETY_DB_NAME)) return;
+        const legacyDb = await new Promise((resolve) => {
+          const req = indexedDB.open(LEGACY_SAFETY_DB_NAME);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        });
+        if (!legacyDb || !legacyDb.objectStoreNames.contains('state')) { legacyDb && legacyDb.close(); return; }
+        const newState = await dbGet('state', 'latest').catch(() => null);
+        if (newState) { legacyDb.close(); return; } // 新库已有数据，不覆盖
+        for (const store of ['state', 'snapshots', 'handles']) {
+          if (!legacyDb.objectStoreNames.contains(store)) continue;
+          const { keys, vals } = await new Promise((resolve) => {
+            try {
+              const os = legacyDb.transaction(store, 'readonly').objectStore(store);
+              const keysReq = os.getAllKeys(), valsReq = os.getAll();
+              let keys = null, vals = null;
+              const done = () => resolve({ keys: keys || [], vals: vals || [] });
+              keysReq.onsuccess = () => { keys = keysReq.result || []; if (vals !== null) done(); };
+              valsReq.onsuccess = () => { vals = valsReq.result || []; if (keys !== null) done(); };
+              keysReq.onerror = valsReq.onerror = () => resolve({ keys: [], vals: [] });
+            } catch (_) { resolve({ keys: [], vals: [] }); }
+          });
+          for (let i = 0; i < keys.length; i += 1) await dbPut(store, vals[i], keys[i]).catch(() => {});
+        }
+        legacyDb.close();
+      }
+
       async function initializeDataSafety() {
-        try {
+        try {        try { await migrateLegacySafetyDb(); } catch (error) { console.warn('安全库迁移未完成（不影响使用）', error); }
           const latest = await dbGet('state', 'latest');
           if (primaryLoadState !== 'valid' && Array.isArray(latest?.records)) {
             if (recordsMutated) {
