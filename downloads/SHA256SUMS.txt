@@ -1,4 +1,4 @@
-37c3b9b7d50e4194476d235899a536dfdd396082f00d5a6e4de7cd5efc7c1570  downloads/校招投递管理-完整版-Mac-v3.3.1.zip
+989427a12552834506c1af3d7663e20e56dcfd31f24af223e8110800169755af  downloads/校招投递管理-完整版-Mac-v3.3.1.zip
 1ead425673a7d0175ee745a36ea12d9a9e470edb5bfc2f995367a043acfb3ad3  downloads/校招投递管理-电脑离线版-v3.3.1.zip
-f54fedb71ffe85593a13412505ea47dd9665be2634e33bc60684c7d1bec3172c  downloads/校招投递管理-完整版-Windows-v3.3.1.zip
+aacff82f58ccfbb0caf183ad3272e1380094513740e5bca5a00a0abe0659ba10  downloads/校招投递管理-完整版-Windows-v3.3.1.zip
 ff95584242e48d2d8faf41cf3b56d98f2dbddeb7aafc1d36e29fa3219fc341c9  downloads/秋招一键收录插件-v1.4.5.zip
