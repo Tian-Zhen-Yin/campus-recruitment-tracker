@@ -21,6 +21,7 @@
       return;
     }
     if (!['CAPTURE_JOB_URL', 'SYNC_QQ_JOBS'].includes(event.data.type)) return;
+    try {
     chrome.runtime.sendMessage({ type: event.data.type, url: event.data.url }, response => {
       if (chrome.runtime.lastError) {
         window.postMessage({ source: EXTENSION_SOURCE, type: event.data.type === 'SYNC_QQ_JOBS' ? 'SYNC_JOBS_ERROR' : 'CAPTURE_ERROR', message: '插件连接失败，请在扩展程序页面重新加载插件。' }, '*');
@@ -32,5 +33,8 @@
         window.postMessage({ source: EXTENSION_SOURCE, type: event.data.type === 'SYNC_QQ_JOBS' ? 'SYNC_JOBS_ERROR' : 'CAPTURE_ERROR', message: response?.message || '没有识别到内容。' }, '*');
       }
     });
+    } catch (e) {
+      window.postMessage({ source: EXTENSION_SOURCE, type: event.data.type === 'SYNC_QQ_JOBS' ? 'SYNC_JOBS_ERROR' : 'CAPTURE_ERROR', message: '插件刚更新过，请刷新本页面后重试。' }, '*');
+    }
   });
 })();
