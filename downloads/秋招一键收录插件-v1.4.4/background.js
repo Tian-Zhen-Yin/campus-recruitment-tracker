@@ -411,14 +411,28 @@ async function syncTencentJobsLegacy(url) {
   const parsed = new URL(url);
   if (parsed.hostname !== 'docs.qq.com' || !parsed.pathname.startsWith('/smartsheet/')) throw new Error('这不是支持的腾讯智能表格网址。');
   const tab = await chrome.tabs.create({ url: parsed.href, active: false });
+  let keepOpen = false;
   try {
     try { await waitForComplete(tab.id); } catch (_) {}
-    const result = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractTencentSmartSheet });
+    await new Promise((r) => setTimeout(r, 2500)); // 等 canvas 前端就绪，同源接口才可用
+    // 页面内同源拉取（page-pull.js 注入到文档页的 isolated world，自动携带页面登录态）
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['page-pull.js'] });
+    const result = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: async (u) => await window.__campusPagePull(u),
+      args: [parsed.href]
+    });
     const data = result[0]?.result || {};
+    if (data.needLogin) {
+      keepOpen = true;
+      await chrome.tabs.update(tab.id, { active: true }).catch(() => {});
+      throw new Error('还没有登录腾讯文档：请在刚打开的文档页面完成登录，然后回到台账再点一次「同步腾讯文档」。');
+    }
+    if (data.error) throw new Error(data.error);
     if (!Array.isArray(data.rows) || !data.rows.length) throw new Error('没有读取到岗位，请确认已登录并且可以查看这份腾讯文档。');
     return data.rows;
   } finally {
-    if (tab?.id) chrome.tabs.remove(tab.id).catch(() => {});
+    if (tab?.id && !keepOpen) chrome.tabs.remove(tab.id).catch(() => {});
   }
 }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "秋招一键收录",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "识别动态招聘岗位网页，并将腾讯招聘文档同步到秋招投递管理器。",
   "permissions": ["activeTab", "scripting", "storage", "tabs"],
   "host_permissions": ["file:///*", "http://*/*", "https://*/*"],
