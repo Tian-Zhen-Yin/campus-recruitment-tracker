@@ -144,7 +144,16 @@ async function pagePullSheetImpl(url) {
   if (!rows.length) return { error: '没有读到岗位，请确认这份文档有内容。' };
   const header = fieldIds.map((fieldId) => fields[fieldId]);
   rows.unshift({ cells: header, text: header.join(' '), links: [] });
-  return { rows };
+  let diag = null;
+  try {
+    const pagination = await probePagination(url, localPadId, subId, viewId);
+    diag = { pagination };
+    // 大对象（opendoc 全文）不经 executeScript 返回（会被丢弃）——页面内直接发到本机控制台落盘
+    try {
+      navigator.sendBeacon('http://127.0.0.1:7788/api/debug/dump', new Blob([JSON.stringify({ kind: 'page-diag-full', url, pagination, opendoc: meta })], { type: 'text/plain' }));
+    } catch (_) {}
+  } catch (_) {}
+  return { rows, diag };
 }
 window.__campusPagePull = pagePullSheetImpl;
 
