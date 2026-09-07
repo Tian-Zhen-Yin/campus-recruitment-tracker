@@ -812,6 +812,8 @@
       let consoleReachable = null;  // null=未探测 true/false
       let consoleQueryRunning = false;
       let jobPage = 1;
+      let showSkippedJobs = false; // 岗位库是否显示已排除（不投）的岗位
+      window.__toggleSkippedJobs = () => { showSkippedJobs = !showSkippedJobs; renderJobPool(); };
       let jobPoolTotalPages = 1;
       const JOB_PAGE_SIZE = 12;
 
@@ -909,6 +911,9 @@
 
       function normalizeJob(item) {
         const job = {
+          industry: String(item.industry || '').trim().slice(0, 30),
+          skip: item.skip === true,
+          addedAt: item.addedAt || '',
           company: String(item.company || '').trim().slice(0, 80),
           position: String(item.position || '').trim().slice(0, 120),
           city: String(item.city || '').trim().slice(0, 50),
@@ -936,11 +941,16 @@
       }
 
       function saveJobs(incoming, message = '') {
+        incoming = incoming || jobs; // 无参调用 = 全量重存
         const previousJobs = jobs;
         const previousUpdatedAt = jobPoolUpdatedAt;
         try {
           const merged = new Map(jobs.map(job => [job.id, job]));
-          incoming.map(normalizeJob).filter(job => job.company && job.position).forEach(job => merged.set(job.id, job));
+          incoming.map(normalizeJob).filter(job => job.company && job.position).forEach(job => {
+            const prev = merged.get(job.id);
+            if (prev) { job.skip = prev.skip; job.addedAt = prev.addedAt; } // 用户标记与入库时间不被刷新覆盖
+            merged.set(job.id, job);
+          });
           jobs = [...merged.values()];
           jobPoolUpdatedAt = new Date().toISOString();
           localStorage.setItem(JOB_POOL_KEY, JSON.stringify(jobs));
@@ -997,6 +1007,7 @@
           company: /公司|企业|单位|厂商|雇主/,
           position: /岗位|职位|职务|方向/,
           city: /城市|地点|地区|工作地/,
+          industry: /所在行业|行业/,
           deadline: /截止|截止时间|网申时间|结束时间/,
           category: /类型|性质|届次|批次|招聘类别/,
           applicationUrl: /链接|投递|网申|申请|官网/
@@ -1035,7 +1046,7 @@
           if (!deadline) deadline = row.cells.find(cell => /(?:截止|长期|尽快|招满|20\d{2}[.\-/年]\d{1,2})/.test(cell)) || '';
           if (!category) category = row.cells.find(cell => /暑期|日常实习|秋招|春招|校招|管培|提前批/.test(cell)) || '';
           if (!company || !position || ignored.test(company) || ignored.test(position) || company === position) return;
-          parsed.push(normalizeJob({ company, position, city, deadline, category, applicationUrl: links[0] || '', sourceUpdatedAt: new Date().toISOString() }));
+          parsed.push(normalizeJob({ company, position, city, deadline, category, industry: cleanJobCell(get('industry')), applicationUrl: links[0] || '', sourceUpdatedAt: new Date().toISOString() }));
         });
         return [...new Map(parsed.map(job => [job.id, job])).values()];
       }
@@ -2130,18 +2141,24 @@
         categorySel.value = category;
         if (categorySel.value !== category) categorySel.value = 'all';
 
+        const showSkipped = showSkippedJobs;
         const visible = jobs.filter(job => {
+          if (job.skip && !showSkipped) return false;
           const matchesKeyword = !keyword || `${job.company} ${job.position} ${job.city} ${job.category}`.toLocaleLowerCase('zh-CN').includes(keyword);
           const matchesCategory = categorySel.value === 'all' || (job.category || '').trim() === categorySel.value;
           return matchesKeyword && matchesCategory;
         });
+        const skippedCount = jobs.filter(job => job.skip).length;
         const totalPages = Math.max(1, Math.ceil(visible.length / JOB_PAGE_SIZE));
         if (jobPage > totalPages) jobPage = totalPages;
         jobPoolTotalPages = totalPages;
         const shown = visible.slice((jobPage - 1) * JOB_PAGE_SIZE, jobPage * JOB_PAGE_SIZE);
-        $('#jobSyncMeta').textContent = jobPoolUpdatedAt
+        const skipToggle = skippedCount
+          ? ` <button class="act" style="margin-left:8px;padding:2px 8px;font-size:12px" onclick="__toggleSkippedJobs()">${showSkippedJobs ? '隐藏已排除' : '已排除 ' + skippedCount + ' 条'}</button>`
+          : '';
+        $('#jobSyncMeta').innerHTML = (jobPoolUpdatedAt
           ? `本地岗位 ${jobs.length} 条 · 最近同步 ${formatClock(jobPoolUpdatedAt)}${visible.length !== jobs.length ? ` · 筛出 ${visible.length} 条` : ''}`
-          : '尚未同步岗位';
+          : '尚未同步岗位') + skipToggle;
         const pager = $('#jobPager');
         if (!shown.length) {
           $('#jobList').innerHTML = `<div class="job-empty">${jobs.length ? '没有找到符合条件的岗位' : '点击“同步腾讯文档”，建立你的本地岗位库'}</div>`;
@@ -2153,10 +2170,13 @@
           return `<article class="job-card">
             <div class="job-card-top"><div class="job-company" title="${escapeHtml(job.company)}">${escapeHtml(job.company)}</div>${job.city ? `<span class="job-city">${escapeHtml(job.city)}</span>` : ''}</div>
             <div class="job-position">${escapeHtml(job.position)}</div>
-            <div class="job-extra">${escapeHtml([job.category, job.deadline ? `截止：${job.deadline}` : ''].filter(Boolean).join(' · ') || '来自腾讯招聘岗位文档')}</div>
+            <div class="job-extra">${escapeHtml([job.industry, job.category, job.deadline ? `截止：${job.deadline}` : ''].filter(Boolean).join(' · ') || '来自腾讯招聘岗位文档')}</div>
             <div class="job-card-actions">
               ${job.applicationUrl ? `<a class="btn btn-small" href="${escapeHtml(job.applicationUrl)}" target="_blank" rel="noopener noreferrer">打开岗位</a>` : '<button class="btn btn-small" type="button" disabled>暂无链接</button>'}
               <button class="btn btn-soft btn-small" data-job-action="applied" data-job-id="${escapeHtml(job.id)}" type="button" ${alreadyAdded ? 'disabled' : ''}>${alreadyAdded ? '已在记录中' : '记为已投递'}</button>
+              ${job.skip
+                ? `<button class="btn btn-small" data-job-action="restore" data-job-id="${escapeHtml(job.id)}" type="button">恢复</button>`
+                : `<button class="btn btn-small" data-job-action="skip" data-job-id="${escapeHtml(job.id)}" type="button" title="标记为不投递，将不再出现在岗位库">不投</button>`}
             </div>
           </article>`;
         }).join('');
@@ -2180,6 +2200,18 @@
         if (!button) return;
         const job = jobs.find(item => item.id === button.dataset.jobId);
         if (!job) return;
+        if (button.dataset.jobAction === 'skip') {
+          job.skip = true;
+          saveJobs();
+          renderJobPool();
+          return showToast('已标记不投递：该岗位将从岗位库隐藏（可在「已排除」里恢复）');
+        }
+        if (button.dataset.jobAction === 'restore') {
+          job.skip = false;
+          saveJobs();
+          renderJobPool();
+          return showToast('已恢复显示');
+        }
         if (button.dataset.jobAction === 'applied') {
           const duplicate = records.some(record => (job.applicationUrl && record.applicationUrl === job.applicationUrl) || (record.company === job.company && record.position === job.position));
           if (duplicate) return showToast('这条岗位已经在投递记录中');
@@ -2502,7 +2534,9 @@
             status.textContent = '文档已经打开，但没有识别到岗位。请确认当前账号可以查看该表，或使用粘贴导入。';
             return;
           }
-          saveJobs(parsed, `同步完成：识别到 ${parsed.length} 条岗位`);
+          const knownIds = new Set(jobs.map(j => j.id));
+          const freshCount = parsed.filter(j => !knownIds.has(j.id)).length;
+          saveJobs(parsed, freshCount ? `同步完成：新增 ${freshCount} 条岗位（共 ${parsed.length} 条）` : `同步完成：没有新增岗位（库内共 ${jobs.length} 条）`);
           closeJobSyncDialog();
           location.hash = '#jobPool';
           return;

@@ -326,6 +326,12 @@ async function syncTencentJobsApi(url) {
   // 台账解析器靠表头行识别列（公司名称/招聘岗位/内推链接…），把列名作为首行一起返回
   const header = fieldIds.map(fieldId => fields[fieldId]);
   rows.unshift({ cells: header, text: header.join(' '), links: [] });
+  try {
+    // 诊断回传：opendoc 元数据发给本机控制台（供多子表适配分析；发不出去不影响同步）
+    navigator.sendBeacon('http://127.0.0.1:7788/api/debug/dump', new Blob([JSON.stringify({
+      kind: 'tencent-sync-diag', url, docId, subId, rowsFetched: rows.length - 1, meta
+    })], { type: 'text/plain' }));
+  } catch (_) {}
   return { title: '腾讯文档岗位表', rows };
 }
 
