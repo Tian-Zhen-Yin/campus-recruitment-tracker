@@ -122,3 +122,29 @@ async function pagePullSheetImpl(url) {
   return { rows };
 }
 window.__campusPagePull = pagePullSheetImpl;
+
+
+// 分页参数矩阵探针：5 种参数组合各拉一次，回报真实行数（供人工修正分页实现）
+async function probePagination(url, localPadId, subId, viewId) {
+  const base = 'https://docs.qq.com/dop-api/get/sheet?padId=' + encodeURIComponent('300000000$' + localPadId) + '&subId=' + encodeURIComponent(subId) + '&outformat=1&normal=1&needSheetState=2';
+  const vq = viewId ? '&viewId=' + encodeURIComponent(viewId) : '';
+  const variants = [
+    ['同视图 0-59', base + '&startrow=0&endrow=59' + vq],
+    ['同视图 60-119', base + '&startrow=60&endrow=119' + vq],
+    ['同视图 300-359', base + '&startrow=300&endrow=359' + vq],
+    ['无视图 0-59', base + '&startrow=0&endrow=59'],
+    ['无视图 60-119', base + '&startrow=60&endrow=119'],
+    ['无视图 300-359', base + '&startrow=300&endrow=359'],
+  ];
+  const out = [];
+  for (const [label, u] of variants) {
+    try {
+      const r = await fetch(u, { credentials: 'include' });
+      const j = await r.json().catch(() => null);
+      const ch = j && parseSheetChunk(j);
+      out.push(label + ':' + r.status + (ch ? '/' + Object.keys(ch.rows).length + '行' : '/无chunk'));
+    } catch (e) { out.push(label + ':异常'); }
+  }
+  return out.join(' | ');
+}
+window.__campusProbePagination = probePagination;

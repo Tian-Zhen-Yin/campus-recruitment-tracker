@@ -328,9 +328,9 @@ async function syncTencentJobsApi(url) {
   rows.unshift({ cells: header, text: header.join(' '), links: [] });
   try {
     // 诊断回传：opendoc 元数据发给本机控制台（供多子表适配分析；发不出去不影响同步）
-    navigator.sendBeacon('http://127.0.0.1:7788/api/debug/dump', new Blob([JSON.stringify({
+    await fetch('http://127.0.0.1:7788/api/debug/dump', { method: 'POST', keepalive: true, headers: { 'content-type': 'text/plain' }, body: JSON.stringify({
       kind: 'tencent-sync-diag', url, docId, subId, rowsFetched: rows.length - 1, meta
-    })], { type: 'text/plain' }));
+    }) }).catch(() => {});
   } catch (_) {}
   return { title: '腾讯文档岗位表', rows };
 }
@@ -437,6 +437,24 @@ async function syncTencentJobsLegacy(url) {
     if (data.error) throw new Error(data.error);
     if (!Array.isArray(data.rows) || !data.rows.length) throw new Error('没有读取到岗位，请确认已登录并且可以查看这份腾讯文档。');
     return data.rows;
+  } catch (e) {
+    // 诊断：分页参数矩阵 + 元数据回传，帮助定位「岗位数量少于表格」
+    let diag = '';
+    if (!/登录腾讯文档/.test(e.message)) {
+      try {
+        const d = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async (u) => await window.__campusProbePagination(u), args: [parsed.href] });
+        diag = d[0]?.result || '';
+        const sw = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async (u) => {
+          const parsed = new URL(u);
+          const docId = parsed.pathname.split('/').filter(Boolean)[1];
+          const meta = await fetch('https://docs.qq.com/dop-api/opendoc?id=' + docId + '&outformat=1&normal=1', { credentials: 'include' }).then((r) => r.json()).catch(() => null);
+          await fetch('http://127.0.0.1:7788/api/debug/dump', { method: 'POST', keepalive: true, headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ kind: 'tencent-fail-diag', url: u, meta }) }).catch(() => {});
+          return '已回传';
+        }, args: [parsed.href] });
+        diag += (sw[0]?.result ? ' | 元数据已回传' : '');
+      } catch (_) {}
+    }
+    throw new Error((e.message || '同步失败') + (diag ? '\n[诊断] ' + diag : ''));
   } finally {
     if (tab?.id && !keepOpen) chrome.tabs.remove(tab.id).catch(() => {});
   }
