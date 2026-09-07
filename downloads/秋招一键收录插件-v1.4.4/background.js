@@ -436,6 +436,9 @@ async function syncTencentJobsLegacy(url) {
     }
     if (data.error) throw new Error(data.error);
     if (!Array.isArray(data.rows) || !data.rows.length) throw new Error('没有读取到岗位，请确认已登录并且可以查看这份腾讯文档。');
+    try {
+      await fetch('http://127.0.0.1:7788/api/debug/dump', { method: 'POST', keepalive: true, headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ kind: 'tencent-pagepull-diag', url: parsed.href, rowsFetched: data.rows.length - 1, diag: data.diag || null }) }).catch(() => {});
+    } catch (_) {}
     return data.rows;
   } catch (e) {
     // 诊断：分页参数矩阵 + 元数据回传，帮助定位「岗位数量少于表格」
