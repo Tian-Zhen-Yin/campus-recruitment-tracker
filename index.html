@@ -695,6 +695,12 @@
       </div>
       <input id="importFileInput" type="file" accept="application/json,.json" hidden>
       <p class="safety-footnote">本地备份不上传网络。若电脑和备份文件同时损坏，仍无法恢复；重要数据建议把备份文件另存到你信任的移动硬盘或个人云盘。</p>
+      <div class="safety-summary" style="margin-top:14px">
+        <div class="safety-row"><div><div class="safety-label">迁移到「校招投递控制台」</div><div class="safety-detail">把投递记录与岗位库（含「不投」标记）一键迁入本机控制台；幂等可重复，台账数据不受影响</div></div><div class="safety-state" id="migrateState">电脑版可用</div></div>
+      </div>
+      <div class="safety-actions">
+        <button class="btn" id="migrateToConsoleBtn" type="button">迁移到校招投递控制台</button>
+      </div>
     </div>
     <div class="modal-actions"><button class="btn" id="doneSafetyDialog" type="button">完成</button></div>
   </dialog>
@@ -1071,7 +1077,9 @@
           appVersion: APP_VERSION,
           savedAt: new Date().toISOString(),
           recordCount: sourceRecords.length,
-          records: sourceRecords.map(record => ({ ...record }))
+          records: sourceRecords.map(record => ({ ...record })),
+          // 2026-09 起随导出一并带上岗位库(旧版导入忽略此字段,向后兼容)
+          jobPool: jobs.map(job => ({ ...job }))
         };
       }
 
@@ -3139,6 +3147,29 @@
       closeOnBackdrop('#safetyDialog', () => $('#safetyDialog').close());
       $('#setupBackupBtn').addEventListener('click', setupAutomaticBackup);
       $('#backupNowBtn').addEventListener('click', backupNow);
+      $('#migrateToConsoleBtn').addEventListener('click', async () => {
+        const btn = $('#migrateToConsoleBtn');
+        btn.disabled = true; btn.textContent = '迁移中…';
+        try {
+          const base = getConsoleBase();
+          const resp = await fetch(`${base}/api/import/tracker`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ records: records.map(r => ({ ...r })), jobPool: jobs.map(j => ({ ...j })) })
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || data.error) throw new Error(data.error || `HTTP ${resp.status}`);
+          $('#migrateState').textContent = '已迁移';
+          $('#migrateState').className = 'safety-state';
+          alert(`迁移完成：投递记录 新增 ${data.recordsAdded}、更新 ${data.recordsUpdated}；岗位库 ${data.jobsImported} 条（含 ${data.skipMarks} 个「不投」标记）。\n\n在控制台 http://127.0.0.1:7788 查看——记录在「投递总览」，岗位在「岗位库 · 台账岗位库」源。`);
+        } catch (error) {
+          $('#migrateState').textContent = '控制台未连接';
+          $('#migrateState').className = 'safety-state warning';
+          alert(`迁移失败：${error.message}\n\n请确认本机「校招投递控制台」正在运行（http://127.0.0.1:7788）。`);
+        } finally {
+          btn.disabled = false; btn.textContent = '迁移到校招投递控制台';
+        }
+      });
       $('#importBtn').addEventListener('click', () => $('#importFileInput').click());
       $('#importFileInput').addEventListener('change', importBackupFile);
       $('#restoreSnapshotBtn').addEventListener('click', restorePreviousSnapshot);
